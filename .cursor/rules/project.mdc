@@ -1,0 +1,41 @@
+---
+alwaysApply: true
+---
+
+# AI Rules for Mealer
+
+Customise web available food recipes to personal preferences and products available in the cupboard/frige is hard.
+Application uses AI, user's food preferences and available products to propose tailored recipes.
+
+## Tech Stack
+- Next.js 15
+- React 19
+- TypeScript 5
+- Tailwind 4
+- Shadcn/ui
+- Supabase
+
+## Project Structure
+
+When introducing changes to the project, always follow the directory structure below:
+
+- `./src` - source code
+- `./src/app` - Pages, layouts
+- `./src/components` - client-side components written in React (dynamic)
+- `./src/components/ui` - client-side components from Shadcn/ui
+- `./src/db/supabase` - Supabase clients and types
+- `./src/assets` - static internal assets
+- `./public` - public assets
+
+When modifying the directory structure, always update this section.
+
+### Guidelines for clean code
+
+- Prioritize error handling and edge cases.
+- Handle errors and edge cases at the beginning of functions.
+- Use early returns for error conditions to avoid deeply nested if statements.
+- Place the happy path last in the function for improved readability.
+- Avoid unnecessary else statements; use if-return pattern instead.
+- Use guard clauses to handle preconditions and invalid states early.
+- Implement proper error logging and user-friendly error messages.
+- Consider using custom error types or error factories for consistent error handling.
