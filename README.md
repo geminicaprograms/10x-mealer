@@ -1,30 +1,143 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mealer
 
-## Getting Started
+A Progressive Web App (PWA) that intelligently matches online recipes with your kitchen inventory, using AI to digitize grocery receipts, track available ingredients, and suggest recipe modifications based on what you actually have in your fridge.
 
-First, run the development server:
+## Table of Contents
 
-```bash
-pnpm dev
-```
+- [Project Description](#project-description)
+- [Tech Stack](#tech-stack)
+- [Getting Started Locally](#getting-started-locally)
+- [Available Scripts](#available-scripts)
+- [Project Scope](#project-scope)
+- [Project Status](#project-status)
+- [License](#license)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Project Description
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Mealer solves the "what's for dinner?" dilemma by acting as a smart bridge between grocery shopping and meal preparation. The MVP targets the Polish market, operating entirely in the Polish language.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Key Features
 
-## Learn More
+- **Receipt Scanning** – Take a photo of your grocery receipt and let AI (OCR + LLM) extract items and quantities automatically
+- **Inventory Management** – Track your kitchen inventory with manual entry, quick-add autocomplete, and pantry staples toggles
+- **Recipe Intelligence** – Paste a recipe URL from supported Polish recipe sites and get ingredient analysis
+- **AI Substitution Suggestions** – Get smart recommendations for ingredient substitutions based on what you have available
+- **Cooking Flow** – Mark recipes as cooked and automatically deduct ingredients from your inventory
 
-To learn more about Next.js, take a look at the following resources:
+### Problem It Solves
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Home cooks often struggle to utilize the food they buy, leading to waste and frustration. Mealer bridges the gap between shopping receipts and recipe books, helping users:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Avoid manual inventory management through AI-powered receipt scanning
+- Find substitutions for missing recipe ingredients using available items
+- Reduce food waste by cooking with what they already have
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Category     | Technology     | Purpose                                            |
+| ------------ | -------------- | -------------------------------------------------- |
+| **Frontend** | Next.js 15     | React framework with PWA support and API routes    |
+|              | React 19       | Interactive, stateful user interfaces              |
+|              | TypeScript 5   | Compile-time type safety                           |
+|              | Tailwind 4     | Utility-first CSS framework                        |
+|              | Shadcn/ui      | Accessible, customizable component library         |
+| **Backend**  | Supabase       | Authentication, PostgreSQL database, storage, RLS  |
+| **AI**       | OpenRouter.ai  | Multi-LLM provider API for OCR and recipe analysis |
+| **CI/CD**    | GitHub Actions | Automated testing and deployment                   |
+| **Hosting**  | DigitalOcean   | Cost-effective hosting infrastructure              |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Getting Started Locally
+
+### Prerequisites
+
+- Node.js **22.22.0** (use [nvm](https://github.com/nvm-sh/nvm) for version management)
+- [pnpm](https://pnpm.io/) package manager
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/your-username/mealer.git
+   cd mealer
+   ```
+
+2. **Set Node.js version**
+
+   ```bash
+   nvm use
+   ```
+
+3. **Install dependencies**
+
+   ```bash
+   pnpm install
+   ```
+
+4. **Start the development server**
+
+   ```bash
+   pnpm dev
+   ```
+
+5. **Open your browser**
+
+   Navigate to [http://localhost:3000](http://localhost:3000)
+
+## Available Scripts
+
+| Script    | Command        | Description                                            |
+| --------- | -------------- | ------------------------------------------------------ |
+| `dev`     | `pnpm dev`     | Start the development server with hot reload           |
+| `build`   | `pnpm build`   | Create an optimized production build                   |
+| `start`   | `pnpm start`   | Start the production server                            |
+| `lint`    | `pnpm lint`    | Run ESLint to check code quality                       |
+| `prepare` | `pnpm prepare` | Set up Husky git hooks (runs automatically on install) |
+
+## Project Scope
+
+### In Scope (MVP)
+
+- PWA development for mobile usage
+- Polish language interface and receipt recognition
+- User accounts with Email/Password authentication
+- Receipt scanning via camera and image upload
+- Inventory CRUD operations
+- Recipe link parsing and ingredient extraction
+- AI-powered substitution suggestions
+- Local storage for recipe history (IndexedDB)
+- Mandatory onboarding for dietary restrictions and kitchen equipment
+
+### Out of Scope (MVP)
+
+- Native mobile apps (App Store/Play Store)
+- Social login providers (Google/Facebook/Apple)
+- Meal planning features (calendar/schedule)
+- Social sharing or community features
+- Food image recognition
+- Nutritional statistics and calorie tracking
+- Offline mode
+- Multiple language support
+- Shopping list generation
+- Push notifications
+- Barcode scanning
+- Expiration date tracking
+
+### Technical Constraints
+
+- Requires active internet connection for all features
+- Receipt scanning accuracy depends on image quality
+- AI processing limited by daily quotas per user
+- Recipe parsing limited to supported websites
+- PWA limitations on iOS (camera access, notifications)
+- Client-side storage subject to browser limitations
+
+## Project Status
+
+🚧 **MVP In Development**
+
+This project is currently in the MVP development phase.
+
+## License
+
+This is a private project. All rights reserved.
