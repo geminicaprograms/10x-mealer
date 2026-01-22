@@ -1,0 +1,212 @@
+---
+alwaysApply: false
+---
+# Supabase Next.js Initialization
+
+This document provides a reproducible guide to create the necessary file structure for integrating Supabase with your Next.js App Router project using the recommended `@supabase/ssr` package.
+
+## Prerequisites
+
+- Your project should use Next.js 15+, React 19, and Tailwind 4.
+- Install the required packages:
+  ```bash
+  npm install @supabase/supabase-js @supabase/ssr
+
+```
+
+* Ensure that `.env.local` exists and contains your Supabase keys (see below).
+* Ensure that a file `/src/db/supabase/database.types.ts` exists and contains the correct type definitions for your database.
+
+IMPORTANT: Check prerequisites before performing actions below. If they're not met, stop and ask a user for the fix.
+
+## File Structure and Setup
+
+### 1. Environment Variables
+
+Update your `.env.local` file. Note that variables intended for the browser must be prefixed with `NEXT_PUBLIC_`.
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+
+```
+
+### 2. Browser Client (Client Components)
+
+Create the file `/src/db/supabase/client.ts` to access Supabase from Client Components.
+
+```ts
+import { createBrowserClient } from '@supabase/ssr'
+import type { Database } from '@/db/supabase/database.types'
+
+export function createClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+
+```
+
+### 3. Server Client (Server Components & Actions)
+
+Create the file `/src/db/supabase/server.ts` to access Supabase from Server Components, Server Actions, and Route Handlers.
+
+*Note: This implementation handles the asynchronous `cookies()` API required in Next.js 15.*
+
+```ts
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import type { Database } from '@/db/supabase/database.types'
+
+export async function createClient() {
+  const cookieStore = await cookies()
+
+  return createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
+}
+
+```
+
+### 4. Middleware Setup
+
+Middleware in Next.js is critical for refreshing Auth tokens. This requires two files: a utility to handle the session update and the root middleware entry point.
+
+#### A. Session Update Utility
+
+Create `/src/db/supabase/middleware.ts`:
+
+```ts
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
+
+export async function updateSession(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          )
+          
+          response = NextResponse.next({
+            request,
+          })
+          
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  // This will refresh session if expired - required for Server Components
+  // [https://supabase.com/docs/guides/auth/server-side/nextjs](https://supabase.com/docs/guides/auth/server-side/nextjs)
+  await supabase.auth.getUser()
+
+  return response
+}
+
+```
+
+#### B. Root Middleware
+
+Create (or update) the file `/src/middleware.ts`:
+
+```ts
+import { type NextRequest } from 'next/server'
+import { updateSession } from '@/db/supabase/middleware'
+
+export async function middleware(request: NextRequest) {
+  return await updateSession(request)
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     * Feel free to modify this pattern to include more paths.
+     */
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
+}
+
+```
+
+## Usage Examples
+
+**In a Server Component:**
+
+```ts
+import { createClient } from '@/db/supabase/server'
+
+export default async function Page() {
+  const supabase = await createClient()
+  const { data: todos } = await supabase.from('todos').select()
+  
+  return <pre>{JSON.stringify(todos, null, 2)}</pre>
+}
+
+```
+
+**In a Client Component:**
+
+```ts
+'use client'
+
+import { createClient } from '@/db/supabase/client'
+import { useEffect, useState } from 'react'
+
+export default function Page() {
+  const [todos, setTodos] = useState<any[] | null>(null)
+  const supabase = createClient()
+
+  useEffect(() => {
+    const getData = async () => {
+      const { data } = await supabase.from('todos').select()
+      setTodos(data)
+    }
+    getData()
+  }, [])
+
+  return <pre>{JSON.stringify(todos, null, 2)}</pre>
+}
+
+```
+
