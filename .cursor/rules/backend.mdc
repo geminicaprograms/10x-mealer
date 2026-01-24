@@ -1,5 +1,5 @@
 ---
-globs: src/db/supabase/*.ts,src/lib/*.ts
+globs: src/db/supabase/*.ts,src/lib/**/*.ts,src/app/api/**/*.ts
 alwaysApply: false
 ---
 ### Backend and Database
@@ -7,4 +7,16 @@ alwaysApply: false
 - Use Supabase for backend services, including authentication and database interactions.
 - Follow Supabase guidelines for security and performance.
 - Use Zod schemas to validate data exchanged with the backend.
-- Use SupabaseClient type from `src/db/supabase/server.ts`
+
+### Supabase Client Usage
+
+- Import `SupabaseClient` type from `@/db/supabase/server` (NOT from `@supabase/supabase-js` or `@supabase/ssr`)
+- The `SupabaseClient` type already includes the `Database` generic, so use it directly without generic parameters:
+  ```typescript
+  import type { SupabaseClient } from "@/db/supabase/server";
+  
+  function myServiceFunction(supabase: SupabaseClient) { ... }
+  ```
+- Use `createClient()` from `@/db/supabase/server` in API route handlers to get an authenticated client
+- Use `Tables<"table_name">` from `@/db/supabase/database.types` for row types
+- Use helpers from `@/lib/utils/db` to convert JSONB fields to typed values (e.g., `ensureStringArray`, `ensureNumberArray`, `ensureString`, `ensureNumber`, `ensureBoolean`)

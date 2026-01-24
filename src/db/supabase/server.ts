@@ -1,11 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import type { Database } from "@/db/supabase/database.types";
 
+/** Typed Supabase client for this project's database schema */
+export type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Creates a Supabase server client for use in API routes and Server Components.
+ * Supports both cookie-based auth (browser) and Authorization header (API testing).
+ */
 export async function createClient() {
   const cookieStore = await cookies();
+  const headerStore = await headers();
 
-  return createServerClient<Database>(
+  // Check for Authorization Bearer token (for API testing with curl)
+  const authHeader = headerStore.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  const client = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -23,6 +35,18 @@ export async function createClient() {
           }
         },
       },
+      // Pass Authorization header for API testing support
+      ...(bearerToken && {
+        global: {
+          headers: {
+            Authorization: `Bearer ${bearerToken}`,
+          },
+        },
+      }),
     }
   );
+
+  return client;
 }
+
+export const DEFAULT_USER_ID = "d4be2e74-97ea-4d00-beb5-e488318529d6";

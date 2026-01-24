@@ -21,9 +21,15 @@ When introducing changes to the project, always follow the directory structure b
 
 - `./src` - source code
 - `./src/app` - Pages, layouts
+- `./src/app/api` - API route handlers (REST endpoints)
+- `./src/types.ts` - shared types for backend and frontend (Entities, DTOs)
 - `./src/components` - client-side components written in React (dynamic)
 - `./src/components/ui` - client-side components from Shadcn/ui
 - `./src/db/supabase` - Supabase clients and types
+- `./src/lib` - services, utilities, and helpers
+- `./src/lib/api` - API utilities (error responses, middleware helpers)
+- `./src/lib/services` - Business logic and data access services
+- `./src/lib/utils` - Shared utility functions (db helpers, formatters)
 - `./src/assets` - static internal assets
 - `./public` - public assets
 
