@@ -72,6 +72,21 @@ export function validationError(
 }
 
 /**
+ * Returns a 422 Unprocessable Entity error response.
+ * Used when request is syntactically valid but contains semantically invalid values.
+ * For example, when array values don't match supported system configuration.
+ *
+ * @param message - Error message describing the issue
+ * @param details - Optional array of field-level validation errors
+ */
+export function unprocessableEntityError(
+  message = "Invalid values provided",
+  details?: ValidationErrorDetailDTO[]
+): NextResponse<ErrorResponseDTO> {
+  return createErrorResponse("VALIDATION_ERROR", message, 422, details);
+}
+
+/**
  * Returns a 429 Too Many Requests error response.
  * Used when the user has exceeded rate limits.
  *
