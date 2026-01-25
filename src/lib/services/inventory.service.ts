@@ -11,6 +11,8 @@ import type {
   InventoryDeductionItemCommand,
   InventoryItemCreateCommand,
   InventoryItemUpdateCommand,
+  InventoryStapleItemDTO,
+  StaplesInitResponseDTO,
   ProductBriefDTO,
   CategoryBriefDTO,
   UnitBriefDTO,
@@ -46,6 +48,34 @@ interface InventoryItemWithRelations {
     id: number;
     name_pl: string;
     abbreviation: string;
+  } | null;
+}
+
+/** Staple definition with joined product for initialization */
+interface StapleDefinitionWithProduct {
+  id: number;
+  product_id: number;
+  product_catalog: {
+    id: number;
+    name_pl: string;
+  };
+}
+
+/** User's existing staple item for comparison */
+interface ExistingStapleItem {
+  id: string;
+  product_id: number | null;
+  is_available: boolean;
+}
+
+/** Staple inventory item with product for response */
+interface StapleItemWithProduct {
+  id: string;
+  product_id: number | null;
+  is_available: boolean;
+  product_catalog: {
+    id: number;
+    name_pl: string;
   } | null;
 }
 
@@ -176,6 +206,16 @@ export const inventoryDeductSchema = z.object({
 
 export type InventoryDeductInput = z.infer<typeof inventoryDeductSchema>;
 
+/**
+ * Zod schema for POST /api/inventory/staples/init.
+ * Validates optional overwrite flag.
+ */
+export const staplesInitSchema = z.object({
+  overwrite: z.boolean().optional().default(false),
+});
+
+export type StaplesInitInput = z.infer<typeof staplesInitSchema>;
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -284,6 +324,27 @@ export function mapInventoryRowToDTO(row: InventoryItemWithRelations): Inventory
     is_available: row.is_available,
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+/**
+ * Maps a staple inventory row to InventoryStapleItemDTO format.
+ *
+ * @param row - Database row with joined product
+ * @returns InventoryStapleItemDTO
+ */
+export function mapStapleRowToDTO(row: StapleItemWithProduct): InventoryStapleItemDTO {
+  return {
+    id: row.id,
+    product_id: row.product_id,
+    product: row.product_catalog
+      ? {
+          id: row.product_catalog.id,
+          name_pl: row.product_catalog.name_pl,
+        }
+      : null,
+    is_staple: true,
+    is_available: row.is_available,
   };
 }
 
@@ -840,5 +901,149 @@ export async function deductInventoryQuantities(
       deleted: deletedCount,
       failed: errors.length,
     },
+  };
+}
+
+// =============================================================================
+// Staples Initialization Functions
+// =============================================================================
+
+/**
+ * Initializes user's staples from system staple definitions.
+ *
+ * When overwrite=false (default):
+ * - Creates staples for products not in user's inventory
+ * - Skips staples that already exist
+ *
+ * When overwrite=true:
+ * - Creates missing staples
+ * - Resets is_available=true for existing staples that are unavailable
+ *
+ * @param supabase - Supabase client instance
+ * @param userId - The authenticated user's UUID
+ * @param options - Options including overwrite flag
+ * @returns Response with created/skipped counts and staples list
+ */
+export async function initializeStaples(
+  supabase: SupabaseClient,
+  userId: string,
+  options: { overwrite: boolean }
+): Promise<StaplesInitResponseDTO> {
+  const { overwrite } = options;
+
+  // 1. Fetch active staple definitions and user's existing staples in parallel
+  const [definitionsResult, existingResult] = await Promise.all([
+    supabase
+      .from("staple_definitions")
+      .select(
+        `
+        id,
+        product_id,
+        product_catalog (
+          id,
+          name_pl
+        )
+      `
+      )
+      .eq("is_active", true),
+    supabase.from("inventory_items").select("id, product_id, is_available").eq("is_staple", true),
+  ]);
+
+  if (definitionsResult.error) {
+    throw definitionsResult.error;
+  }
+  if (existingResult.error) {
+    throw existingResult.error;
+  }
+
+  const definitions = (definitionsResult.data ?? []) as StapleDefinitionWithProduct[];
+  const existingStaples = (existingResult.data ?? []) as ExistingStapleItem[];
+
+  // 2. Build map of existing staples by product_id
+  const existingByProductId = new Map<number, ExistingStapleItem>();
+  for (const staple of existingStaples) {
+    if (staple.product_id !== null) {
+      existingByProductId.set(staple.product_id, staple);
+    }
+  }
+
+  // 3. Determine which staples to create and which to update
+  const staplesToCreate: Array<{
+    user_id: string;
+    product_id: number;
+    is_staple: boolean;
+    is_available: boolean;
+  }> = [];
+  const staplesToUpdate: string[] = [];
+  let skipped = 0;
+
+  for (const definition of definitions) {
+    const existing = existingByProductId.get(definition.product_id);
+
+    if (!existing) {
+      // Create new staple
+      staplesToCreate.push({
+        user_id: userId,
+        product_id: definition.product_id,
+        is_staple: true,
+        is_available: true,
+      });
+    } else if (overwrite && !existing.is_available) {
+      // Reset availability if overwrite mode and currently unavailable
+      staplesToUpdate.push(existing.id);
+    } else {
+      // Skip existing staple (either in non-overwrite mode, or already available in overwrite mode)
+      skipped++;
+    }
+  }
+
+  // 4. Execute database operations
+  if (staplesToCreate.length > 0) {
+    const { error: insertError } = await supabase.from("inventory_items").insert(staplesToCreate);
+
+    if (insertError) {
+      throw insertError;
+    }
+  }
+
+  if (staplesToUpdate.length > 0) {
+    const { error: updateError } = await supabase
+      .from("inventory_items")
+      .update({ is_available: true, updated_at: new Date().toISOString() })
+      .in("id", staplesToUpdate);
+
+    if (updateError) {
+      throw updateError;
+    }
+  }
+
+  // 5. Fetch final staples list with product info
+  const { data: finalStaples, error: fetchError } = await supabase
+    .from("inventory_items")
+    .select(
+      `
+      id,
+      product_id,
+      is_available,
+      product_catalog (
+        id,
+        name_pl
+      )
+    `
+    )
+    .eq("is_staple", true)
+    .order("product_id", { ascending: true });
+
+  if (fetchError) {
+    throw fetchError;
+  }
+
+  // 6. Map to DTOs and return
+  const staples = ((finalStaples ?? []) as StapleItemWithProduct[]).map(mapStapleRowToDTO);
+
+  return {
+    created: staplesToCreate.length + staplesToUpdate.length,
+    skipped,
+    staples,
   };
 }
