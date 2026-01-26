@@ -275,12 +275,237 @@ else
 fi
 
 # =============================================================================
+# Test 7: POST /api/recipes/parse-text (valid text)
+# =============================================================================
+print_header "Test 7: POST /api/recipes/parse-text (valid text)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse-text"
+echo "  Body: { text: <Polish recipe ingredients> }"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse-text" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "text": "Składniki:\n- 500g filetu z kurczaka\n- 200 ml śmietany 30%\n- 2 cebule\n- 3 ząbki czosnku\n- sól i pieprz do smaku"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "200" ]; then
+    print_success "Recipe text parsing endpoint returned successfully"
+else
+    print_error "Recipe text parsing endpoint failed with status $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 8: POST /api/recipes/parse-text (empty text validation)
+# =============================================================================
+print_header "Test 8: Validation Error (empty text)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse-text"
+echo "  Body: { text: '' } <- empty string"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse-text" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "text": ""
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 9: POST /api/recipes/parse-text (no auth)
+# =============================================================================
+print_header "Test 9: Recipe Text Parsing Unauthorized (no token)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse-text (without Authorization header)"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse-text" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "text": "500g kurczaka"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "401" ]; then
+    print_success "Unauthorized error returned correctly (401)"
+else
+    print_error "Expected 401, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 10: POST /api/recipes/parse (valid URL from allowed domain)
+# =============================================================================
+print_header "Test 10: POST /api/recipes/parse (valid URL)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse"
+echo "  Body: { url: 'https://cazzscookingcommunity.github.io/recipes/xml/easy_stir_fry.xml' }"
+echo ""
+echo "Note: This test will attempt to fetch from the real URL."
+echo "      If the URL doesn't exist, expect 404 or 502."
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "url": "https://cazzscookingcommunity.github.io/recipes/xml/easy_stir_fry.xml"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "200" ]; then
+    print_success "Recipe URL parsing endpoint returned successfully"
+elif [ "$HTTP_CODE" = "404" ] || [ "$HTTP_CODE" = "502" ]; then
+    print_warning "URL parsing returned $HTTP_CODE - external fetch may have failed (expected in test environment)"
+else
+    print_error "Recipe URL parsing endpoint failed with status $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 11: POST /api/recipes/parse (non-allowed domain)
+# =============================================================================
+print_header "Test 11: Forbidden Error (non-allowed domain)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse"
+echo "  Body: { url: 'https://example.com/recipe' } <- domain not in allowlist"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "url": "https://example.com/recipe"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "403" ]; then
+    print_success "Forbidden error returned correctly (403)"
+else
+    print_error "Expected 403, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 12: POST /api/recipes/parse (invalid URL format)
+# =============================================================================
+print_header "Test 12: Validation Error (invalid URL format)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse"
+echo "  Body: { url: 'not-a-valid-url' } <- invalid URL"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "url": "not-a-valid-url"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 13: POST /api/recipes/parse (HTTP URL - HTTPS required)
+# =============================================================================
+print_header "Test 13: Validation Error (HTTP URL, HTTPS required)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/recipes/parse"
+echo "  Body: { url: 'http://www.kwestiasmaku.com/...' } <- HTTP not allowed"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/recipes/parse" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "url": "http://www.kwestiasmaku.com/przepis"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 print_header "Test Summary"
 
 echo "All tests completed!"
 echo ""
-echo "Note: The receipt scan and substitutions endpoints use mock data."
-echo "To get real AI responses, configure OPENROUTER_API_KEY in .env"
+echo "Note: The AI endpoints (receipt scan, substitutions, recipe parsing)"
+echo "      use mock data for development/testing."
+echo "      To get real AI responses, configure OPENROUTER_API_KEY in .env"
+echo ""
+echo "Recipe Parsing Endpoints:"
+echo "  - POST /api/recipes/parse       - Parse recipe from URL"
+echo "  - POST /api/recipes/parse-text  - Parse recipe from raw text"
+echo ""
+echo "Supported domains for URL parsing:"
+echo "  - kwestiasmaku.com"
+echo "  - przepisy.pl"
+echo "  - aniagotuje.pl"
+echo "  - kuchnialidla.pl"
+echo "  - mojegotowanie.pl"
 echo ""

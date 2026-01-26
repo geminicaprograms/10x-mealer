@@ -22,8 +22,14 @@
  * ```
  */
 
-import type { RecipeIngredientCommand, IngredientAnalysisDTO, MatchedInventoryItemDTO } from "@/types";
+import type {
+  RecipeIngredientCommand,
+  IngredientAnalysisDTO,
+  MatchedInventoryItemDTO,
+  ParsedIngredientDTO,
+} from "@/types";
 import type { SubstitutionContext, InventoryItemForAI } from "./ai.service";
+import type { LLMRecipeParseResult, LLMTextParseResult } from "./recipe.service";
 
 // =============================================================================
 // Types
@@ -346,4 +352,175 @@ export async function generateSubstitutions(
   }
 
   return analysis;
+}
+
+// =============================================================================
+// Recipe Parsing Functions
+// =============================================================================
+
+/**
+ * Mock ingredients for recipe parsing development/testing.
+ * Represents common Polish recipe ingredients.
+ */
+const MOCK_RECIPE_INGREDIENTS: ParsedIngredientDTO[] = [
+  { name: "filet z kurczaka", quantity: 500, unit: "g", original_text: "500g filetu z kurczaka" },
+  { name: "śmietana 30%", quantity: 200, unit: "ml", original_text: "200 ml śmietany 30%" },
+  { name: "cebula", quantity: 2, unit: "szt.", original_text: "2 cebule" },
+  { name: "czosnek", quantity: 3, unit: "ząbki", original_text: "3 ząbki czosnku" },
+  { name: "masło", quantity: 50, unit: "g", original_text: "50g masła" },
+  { name: "mąka pszenna", quantity: 2, unit: "łyżki", original_text: "2 łyżki mąki" },
+  { name: "bulion drobiowy", quantity: 200, unit: "ml", original_text: "200 ml bulionu drobiowego" },
+  { name: "pieczarki", quantity: 200, unit: "g", original_text: "200g pieczarek" },
+  { name: "natka pietruszki", quantity: null, unit: null, original_text: "natka pietruszki do dekoracji" },
+  { name: "sól", quantity: null, unit: null, original_text: "sól do smaku", is_staple: true },
+  { name: "pieprz", quantity: null, unit: null, original_text: "pieprz do smaku", is_staple: true },
+  { name: "papryka słodka", quantity: 1, unit: "łyżeczka", original_text: "1 łyżeczka papryki słodkiej" },
+  { name: "tymianek", quantity: null, unit: null, original_text: "szczypta tymianku", is_staple: true },
+  { name: "makaron tagliatelle", quantity: 400, unit: "g", original_text: "400g makaronu tagliatelle" },
+  { name: "parmezan", quantity: 50, unit: "g", original_text: "50g parmezanu do posypania" },
+];
+
+/**
+ * Mock recipe titles for development/testing.
+ */
+const MOCK_RECIPE_TITLES = [
+  "Kurczak w sosie śmietanowym z pieczarkami",
+  "Makaron z kurczakiem i warzywami",
+  "Pierś z kurczaka w sosie czosnkowym",
+  "Kurczak duszony z cebulą",
+  "Kremowy sos z kurczakiem",
+];
+
+/**
+ * Parses recipe ingredients from HTML content using AI.
+ *
+ * @param content - Extracted text content from the recipe page
+ * @param pageTitle - Title of the recipe page
+ * @returns Parsed recipe with title, ingredients, and confidence score
+ * @throws ExternalServiceError if the LLM API call fails
+ *
+ * @todo Implement actual OpenRouter API call:
+ * 1. Create a prompt that instructs the LLM to extract Polish recipe ingredients
+ * 2. Request structured JSON output with: title, ingredients array
+ * 3. Each ingredient should have: name, quantity (number|null), unit (string|null), original_text
+ * 4. Include instructions to identify staple ingredients (sól, pieprz, etc.)
+ * 5. Make POST request to OPENROUTER_CONFIG.baseUrl + "/chat/completions"
+ * 6. Parse and validate the structured response
+ * 7. Handle rate limiting, timeouts, and API errors
+ * 8. Implement retry logic with exponential backoff for transient failures
+ *
+ * @example Prompt structure:
+ * ```
+ * System: You are a recipe ingredient parser for Polish recipes. Extract all ingredients
+ * with their quantities and units. Return JSON in the specified format.
+ *
+ * User: Parse the following recipe content and extract all ingredients:
+ * [content]
+ *
+ * Expected output format:
+ * {
+ *   "title": "Recipe title",
+ *   "ingredients": [
+ *     { "name": "ingredient name", "quantity": 500, "unit": "g", "original_text": "500g składnika" }
+ *   ],
+ *   "confidence": 0.85
+ * }
+ * ```
+ */
+export async function parseRecipeFromHTML(content: string, pageTitle: string): Promise<LLMRecipeParseResult> {
+  // TODO: Implement actual OpenRouter API call for recipe parsing from HTML
+  // For now, return mock data for development/testing
+
+  // Simulate API latency
+  await new Promise((resolve) => setTimeout(resolve, 800));
+
+  // Check if API key is configured (for future implementation)
+  if (!OPENROUTER_CONFIG.apiKey) {
+    console.warn("OpenRouter API key not configured, using mock data for recipe parsing");
+  }
+
+  // Use page title if available, otherwise pick a random mock title
+  const title =
+    pageTitle && pageTitle !== "Unknown Recipe"
+      ? pageTitle
+      : MOCK_RECIPE_TITLES[Math.floor(Math.random() * MOCK_RECIPE_TITLES.length)];
+
+  // Return semi-random selection of mock ingredients (5-10 items)
+  const numItems = Math.floor(Math.random() * 6) + 5;
+  const shuffled = [...MOCK_RECIPE_INGREDIENTS].sort(() => Math.random() - 0.5);
+  const selectedIngredients = shuffled.slice(0, numItems);
+
+  // Generate confidence score between 0.75 and 0.95
+  const confidence = 0.75 + Math.random() * 0.2;
+
+  return {
+    title,
+    ingredients: selectedIngredients,
+    confidence: Math.round(confidence * 100) / 100,
+  };
+}
+
+/**
+ * Parses recipe ingredients from raw text using AI.
+ *
+ * @param text - Raw recipe text (e.g., copy-pasted ingredient list)
+ * @returns Parsed ingredients with confidence score
+ * @throws ExternalServiceError if the LLM API call fails
+ *
+ * @todo Implement actual OpenRouter API call:
+ * 1. Create a prompt that instructs the LLM to parse Polish recipe ingredients from text
+ * 2. Request structured JSON output with ingredients array
+ * 3. Each ingredient should have: name, quantity (number|null), unit (string|null), original_text, is_staple (boolean)
+ * 4. Handle various input formats: bullet lists, numbered lists, comma-separated, plain text
+ * 5. Identify staple ingredients (sól, pieprz, olej, etc.) and mark them with is_staple: true
+ * 6. Normalize Polish unit names (łyżka, szklanka, kg, g, ml, l, szt.)
+ * 7. Make POST request to OPENROUTER_CONFIG.baseUrl + "/chat/completions"
+ * 8. Parse and validate the structured response
+ * 9. Handle rate limiting, timeouts, and API errors
+ *
+ * @example Prompt structure:
+ * ```
+ * System: You are a recipe ingredient parser for Polish recipes. Parse the input text
+ * and extract all ingredients with their quantities and units. Identify staple ingredients
+ * like salt, pepper, oil, etc. Return JSON in the specified format.
+ *
+ * User: Parse the following ingredient text:
+ * [text]
+ *
+ * Expected output format:
+ * {
+ *   "ingredients": [
+ *     { "name": "kurczak", "quantity": 500, "unit": "g", "original_text": "500g kurczaka", "is_staple": false }
+ *   ],
+ *   "confidence": 0.82
+ * }
+ * ```
+ */
+export async function parseRecipeFromText(text: string): Promise<LLMTextParseResult> {
+  // TODO: Implement actual OpenRouter API call for recipe parsing from text
+  // For now, return mock data for development/testing
+
+  // Simulate API latency
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
+  // Check if API key is configured (for future implementation)
+  if (!OPENROUTER_CONFIG.apiKey) {
+    console.warn("OpenRouter API key not configured, using mock data for text parsing");
+  }
+
+  // Count lines in input to estimate number of ingredients
+  const lineCount = text.split(/[\n,;]+/).filter((line) => line.trim().length > 0).length;
+  const numItems = Math.min(Math.max(lineCount, 3), 12); // Between 3 and 12 items
+
+  // Return semi-random selection of mock ingredients
+  const shuffled = [...MOCK_RECIPE_INGREDIENTS].sort(() => Math.random() - 0.5);
+  const selectedIngredients = shuffled.slice(0, numItems);
+
+  // Generate confidence score between 0.70 and 0.90 (slightly lower for text parsing)
+  const confidence = 0.7 + Math.random() * 0.2;
+
+  return {
+    ingredients: selectedIngredients,
+    confidence: Math.round(confidence * 100) / 100,
+  };
 }
