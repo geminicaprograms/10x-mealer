@@ -488,6 +488,188 @@ else
 fi
 
 # =============================================================================
+# Test 14: POST /api/auth/delete-account (no auth)
+# =============================================================================
+print_header "Test 14: Delete Account Unauthorized (no token)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account (without Authorization header)"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "password": "test123",
+        "confirmation": "USUŃ MOJE KONTO"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "401" ]; then
+    print_success "Unauthorized error returned correctly (401)"
+else
+    print_error "Expected 401, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 15: POST /api/auth/delete-account (missing password)
+# =============================================================================
+print_header "Test 15: Delete Account Validation Error (missing password)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account"
+echo "  Body: { confirmation: 'USUŃ MOJE KONTO' } <- missing password"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "confirmation": "USUŃ MOJE KONTO"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 16: POST /api/auth/delete-account (missing confirmation)
+# =============================================================================
+print_header "Test 16: Delete Account Validation Error (missing confirmation)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account"
+echo "  Body: { password: 'test123' } <- missing confirmation"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "password": "test123"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 17: POST /api/auth/delete-account (wrong confirmation text)
+# =============================================================================
+print_header "Test 17: Delete Account Forbidden (wrong confirmation)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account"
+echo "  Body: { password: 'test123', confirmation: 'wrong text' } <- wrong confirmation"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "password": "test123",
+        "confirmation": "wrong text"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "403" ]; then
+    print_success "Forbidden error returned correctly (403)"
+else
+    print_error "Expected 403, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 18: POST /api/auth/delete-account (invalid JSON)
+# =============================================================================
+print_header "Test 18: Delete Account Validation Error (invalid JSON)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account"
+echo "  Body: invalid json <- malformed JSON"
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d 'invalid json')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "400" ]; then
+    print_success "Validation error returned correctly (400)"
+else
+    print_error "Expected 400, got $HTTP_CODE"
+fi
+
+# =============================================================================
+# Test 19: POST /api/auth/delete-account (wrong password - safe test)
+# =============================================================================
+print_header "Test 19: Delete Account Forbidden (wrong password)"
+
+echo "Request:"
+echo "  POST ${BASE_URL}/api/auth/delete-account"
+echo "  Body: { password: 'definitely_wrong_password_12345', confirmation: 'USUŃ MOJE KONTO' }"
+echo ""
+echo "Note: This test uses a deliberately wrong password to verify 403 response."
+echo "      The account will NOT be deleted."
+echo ""
+
+RESPONSE=$(curl -s -w "\n%{http_code}" \
+    -X POST "${BASE_URL}/api/auth/delete-account" \
+    -H "Authorization: Bearer ${AUTH_TOKEN}" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "password": "definitely_wrong_password_12345",
+        "confirmation": "USUŃ MOJE KONTO"
+    }')
+
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+BODY=$(echo "$RESPONSE" | sed '$d')
+
+echo "Response (HTTP $HTTP_CODE):"
+echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+
+if [ "$HTTP_CODE" = "403" ]; then
+    print_success "Forbidden error returned correctly (403)"
+else
+    print_error "Expected 403, got $HTTP_CODE"
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 print_header "Test Summary"
@@ -502,10 +684,17 @@ echo "Recipe Parsing Endpoints:"
 echo "  - POST /api/recipes/parse       - Parse recipe from URL"
 echo "  - POST /api/recipes/parse-text  - Parse recipe from raw text"
 echo ""
+echo "Auth Endpoints:"
+echo "  - POST /api/auth/delete-account - Permanently delete user account"
+echo "    Requires: password + confirmation text 'USUŃ MOJE KONTO'"
+echo ""
 echo "Supported domains for URL parsing:"
 echo "  - kwestiasmaku.com"
 echo "  - przepisy.pl"
 echo "  - aniagotuje.pl"
 echo "  - kuchnialidla.pl"
 echo "  - mojegotowanie.pl"
+echo ""
+echo -e "${YELLOW}WARNING: Test 19 does NOT test successful account deletion.${NC}"
+echo -e "${YELLOW}         To test actual deletion, create a test account first!${NC}"
 echo ""
