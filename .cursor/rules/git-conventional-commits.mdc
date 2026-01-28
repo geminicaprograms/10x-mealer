@@ -1,0 +1,59 @@
+---
+description: Conventional Commits format for commit messages
+alwaysApply: true
+---
+
+# Conventional Commits
+
+When generating commit messages, use the Conventional Commits format.
+
+## Format
+
+```
+<type>(<scope>): <short description>
+
+[optional body - explain what and why]
+```
+
+## Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Code style (formatting, no logic change) |
+| `refactor` | Code refactoring (no feature/fix) |
+| `perf` | Performance improvement |
+| `test` | Adding/fixing tests |
+| `chore` | Build, CI, dependencies |
+| `build` | Build system changes |
+| `ci` | CI configuration |
+
+## Rules
+
+- **Description**: lowercase, no period, imperative mood ("add" not "added")
+- **Scope**: optional, indicates affected area (e.g., `auth`, `inventory`, `api`)
+- **Body**: optional, explains motivation for change
+- **Length**: subject line max 72 characters
+
+## Examples
+
+```
+feat(inventory): add product catalog autocomplete search
+
+Allows users to search the product_catalog when adding items via
+the QuickAddSheet. Auto-selects default unit from catalog products.
+```
+
+```
+fix(auth): resolve session expiration redirect loop
+```
+
+```
+refactor(api): extract validation into reusable middleware
+```
+
+```
+chore(deps): update shadcn/ui components
+```
