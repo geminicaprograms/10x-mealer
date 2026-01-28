@@ -48,5 +48,3 @@ export async function createClient() {
 
   return client;
 }
-
-export const DEFAULT_USER_ID = "1904e4e8-db9a-435d-a881-2c460c715785";
