@@ -14,6 +14,40 @@ export const DELETE_ACCOUNT_CONFIRMATION = "USUŃ MOJE KONTO";
 // =============================================================================
 
 /**
+ * Zod schema for login request validation.
+ * Used for client-side form validation and consistency with backend expectations.
+ */
+export const loginSchema = z.object({
+  email: z.string().min(1, "Email jest wymagany").email("Nieprawidłowy format email"),
+  password: z.string().min(8, "Hasło musi mieć minimum 8 znaków"),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+
+/**
+ * Zod schema for registration request validation.
+ * Password must have: 8+ chars, uppercase, lowercase, number.
+ * Used for client-side form validation and consistency with backend expectations.
+ */
+export const registerSchema = z
+  .object({
+    email: z.string().min(1, "Email jest wymagany").email("Nieprawidłowy format email"),
+    password: z
+      .string()
+      .min(8, "Hasło musi mieć minimum 8 znaków")
+      .regex(/[A-Z]/, "Hasło musi zawierać wielką literę")
+      .regex(/[a-z]/, "Hasło musi zawierać małą literę")
+      .regex(/[0-9]/, "Hasło musi zawierać cyfrę"),
+    confirmPassword: z.string().min(1, "Potwierdzenie hasła jest wymagane"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Hasła nie są identyczne",
+    path: ["confirmPassword"],
+  });
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+/**
  * Zod schema for validating POST /api/auth/delete-account request body.
  */
 export const deleteAccountSchema = z.object({

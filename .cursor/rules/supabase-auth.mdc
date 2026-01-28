@@ -1,0 +1,621 @@
+---
+description: Supabase Auth Integration with Next.js
+globs: src/db/supabase/*.ts, src/app/api/auth/**/*.ts, src/lib/services/auth.service.ts, src/components/auth/**/*.tsx, src/proxy.ts
+alwaysApply: false
+---
+# Supabase Auth Integration with Next.js
+
+Use this guide to implement authentication (sign-up, sign-in, password reset) in Next.js applications with Server-Side Rendering (SSR) support.
+
+## Before we start
+
+VERY IMPORTANT: Ask me which pages or components should behave differently after introducing authentication. Adjust further steps accordingly.
+
+## Core Requirements
+
+1. Use `@supabase/ssr` package (NOT `@supabase/auth-helpers-nextjs`)
+2. Use ONLY `getAll` and `setAll` for cookie management
+3. NEVER use individual `get`, `set`, or `remove` cookie methods
+4. Implement proper session management with proxy based on JWT (Supabase Auth)
+5. Use `supabase.auth.getUser()` for server-side auth verification (validates JWT signature)
+6. NEVER trust `supabase.auth.getSession()` inside server code - it doesn't revalidate the Auth token
+7. **Proxy file MUST be named `proxy.ts`** and export a function named `proxy` (Next.js 16+ convention)
+
+## Installation
+
+```bash
+pnpm add @supabase/ssr @supabase/supabase-js
+```
+
+## Environment Variables
+
+Create `.env.local` file with required Supabase credentials:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+# Only for admin operations (server-side only, NEVER expose to client)
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+Make sure `.env.example` is updated with the correct environment variables (without actual values).
+
+## Implementation Steps
+
+### 1. Create Browser Client (Client Components)
+
+Use this client in Client Components that run in the browser.
+
+Create `src/db/supabase/client.ts`:
+
+```typescript
+import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "@/db/supabase/database.types";
+
+export function createClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+}
+```
+
+### 2. Create Server Client (Server Components, Route Handlers, Server Actions)
+
+Use this client in Server Components, Server Actions, and Route Handlers.
+
+Create `src/db/supabase/server.ts`:
+
+```typescript
+import { createServerClient } from "@supabase/ssr";
+import { cookies, headers } from "next/headers";
+import type { Database } from "@/db/supabase/database.types";
+
+/** Typed Supabase client for this project's database schema */
+export type SupabaseClient = Awaited<ReturnType<typeof createClient>>;
+
+/**
+ * Creates a Supabase server client for use in API routes and Server Components.
+ * Supports both cookie-based auth (browser) and Authorization header (API testing).
+ */
+export async function createClient() {
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+
+  // Check for Authorization Bearer token (for API testing with curl)
+  const authHeader = headerStore.get("Authorization");
+  const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  const client = createServerClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+      // Pass Authorization header for API testing support
+      ...(bearerToken && {
+        global: {
+          headers: {
+            Authorization: `Bearer ${bearerToken}`,
+          },
+        },
+      }),
+    }
+  );
+
+  return client;
+}
+```
+
+### 3. Create Admin Client (Server-side only)
+
+For operations requiring admin privileges (e.g., deleting users).
+
+Create `src/db/supabase/admin.ts`:
+
+```typescript
+import { createClient } from "@supabase/supabase-js";
+import type { Database } from "@/db/supabase/database.types";
+
+/**
+ * Creates a Supabase admin client with service role key.
+ * ONLY use on the server for privileged operations.
+ */
+export function createAdminClient() {
+  return createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    }
+  );
+}
+```
+
+### 4. Implement Session Refresh Helper
+
+Create `src/db/supabase/middleware.ts` (helper module for session refresh, not the Next.js proxy entry point):
+
+```typescript
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function updateSession(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          );
+
+          response = NextResponse.next({
+            request,
+          });
+
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
+
+  // This will refresh session if expired - required for Server Components
+  // https://supabase.com/docs/guides/auth/server-side/nextjs
+  await supabase.auth.getUser();
+
+  return response;
+}
+```
+
+### 5. Hook Up Next.js Proxy
+
+> **Note**: As of Next.js 16, `middleware.ts` is deprecated and renamed to `proxy.ts`. The exported function must be named `proxy`. See [Next.js Proxy docs](https://nextjs.org/docs/app/api-reference/file-conventions/proxy).
+
+Create `src/proxy.ts`:
+
+```typescript
+import { type NextRequest } from "next/server";
+import { updateSession } from "@/db/supabase/middleware";
+
+/**
+ * Public routes that don't require authentication
+ */
+const PUBLIC_ROUTES = ["/login", "/register", "/reset-password"];
+
+/**
+ * Routes that require completed onboarding
+ * AI features are blocked for users with pending onboarding
+ */
+const PROTECTED_AI_ROUTES = ["/api/ai/"];
+
+/**
+ * Check if the path matches any of the routes
+ */
+function matchesRoute(pathname: string, routes: string[]): boolean {
+  return routes.some((route) => pathname.startsWith(route));
+}
+
+/**
+ * Next.js Proxy - runs on every request matching the config.matcher pattern.
+ * 
+ * As of Next.js 16, 'middleware' is deprecated and renamed to 'proxy'.
+ * The file MUST be named `proxy.ts` and placed at project root or in `src/`.
+ * The exported function MUST be named `proxy`.
+ * 
+ * @see https://nextjs.org/docs/app/api-reference/file-conventions/proxy
+ */
+export async function proxy(request: NextRequest) {
+  // Update session (refresh if expired)
+  const response = await updateSession(request);
+
+  const { pathname } = request.nextUrl;
+
+  // Allow public routes without any checks
+  if (matchesRoute(pathname, PUBLIC_ROUTES)) {
+    return response;
+  }
+
+  // Allow API routes to handle their own auth (they return 401 if unauthorized)
+  if (pathname.startsWith("/api/")) {
+    return response;
+  }
+
+  // Allow static files and Next.js internals
+  if (pathname.startsWith("/_next/") || pathname.startsWith("/favicon.ico") || pathname.includes(".")) {
+    return response;
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - images - .svg, .png, .jpg, .jpeg, .gif, .webp
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
+};
+```
+
+**Migration from middleware.ts (Next.js < 16)**:
+If your project uses the old `middleware.ts` convention, you can migrate using:
+```bash
+npx @next/codemod@canary middleware-to-proxy .
+```
+This will rename the file and function from `middleware` to `proxy`.
+
+## Auth API Endpoints
+
+### Login Endpoint
+
+Create `src/app/api/auth/login/route.ts`:
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/db/supabase/server";
+import { z } from "zod";
+import { validationError, internalError } from "@/lib/api/errors";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const parseResult = loginSchema.safeParse(body);
+
+    if (!parseResult.success) {
+      return validationError("Validation failed");
+    }
+
+    const { email, password } = parseResult.data;
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ user: data.user }, { status: 200 });
+  } catch (error) {
+    console.error("Login error:", error);
+    return internalError();
+  }
+}
+```
+
+### Register Endpoint
+
+Create `src/app/api/auth/register/route.ts`:
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/db/supabase/server";
+import { z } from "zod";
+import { validationError, internalError } from "@/lib/api/errors";
+
+const registerSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const parseResult = registerSchema.safeParse(body);
+
+    if (!parseResult.success) {
+      return validationError("Validation failed");
+    }
+
+    const { email, password } = parseResult.data;
+    const supabase = await createClient();
+
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ user: data.user }, { status: 200 });
+  } catch (error) {
+    console.error("Register error:", error);
+    return internalError();
+  }
+}
+```
+
+### Logout Endpoint
+
+Create `src/app/api/auth/logout/route.ts`:
+
+```typescript
+import { NextResponse } from "next/server";
+import { createClient } from "@/db/supabase/server";
+import { internalError } from "@/lib/api/errors";
+
+export async function POST() {
+  try {
+    const supabase = await createClient();
+
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ message: "Logged out successfully" }, { status: 200 });
+  } catch (error) {
+    console.error("Logout error:", error);
+    return internalError();
+  }
+}
+```
+
+## Protecting Routes
+
+### In API Routes
+
+```typescript
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/db/supabase/server";
+import { unauthorizedError } from "@/lib/api/errors";
+
+export async function GET(request: NextRequest) {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return unauthorizedError();
+  }
+
+  // User is authenticated, proceed with protected logic
+  // user.id, user.email available
+}
+```
+
+### In Server Components
+
+```typescript
+import { createClient } from "@/db/supabase/server";
+import { redirect } from "next/navigation";
+
+export default async function ProtectedPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  return (
+    <div>
+      <h1>Protected Page</h1>
+      <p>Welcome {user.email}!</p>
+    </div>
+  );
+}
+```
+
+### In Client Components
+
+```typescript
+"use client";
+
+import { useEffect, useState } from "react";
+import { createClient } from "@/db/supabase/client";
+import type { User } from "@supabase/supabase-js";
+
+export function useUser() {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+
+    // Get initial session
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  return { user, loading };
+}
+```
+
+## Auth Forms (Client Components)
+
+### Login Form Pattern
+
+```typescript
+"use client";
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { createClient } from "@/db/supabase/client";
+import { useRouter } from "next/navigation";
+
+const loginSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
+export function LoginForm() {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
+    setIsSubmitting(true);
+    setServerError(null);
+
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: data.email,
+      password: data.password,
+    });
+
+    if (error) {
+      setServerError(error.message);
+      setIsSubmitting(false);
+      return;
+    }
+
+    router.push("/dashboard");
+    router.refresh();
+  };
+
+  // ... render form
+}
+```
+
+## Password Reset Flow
+
+### 1. Request Reset (sends email)
+
+```typescript
+const supabase = createClient();
+const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${window.location.origin}/update-password`,
+});
+```
+
+### 2. Update Password (after clicking email link)
+
+```typescript
+const supabase = createClient();
+const { error } = await supabase.auth.updateUser({
+  password: newPassword,
+});
+```
+
+## Security Best Practices
+
+1. **Cookie Settings**: The `@supabase/ssr` package handles secure cookie settings automatically
+2. **Never expose service role key**: Only use `SUPABASE_SERVICE_ROLE_KEY` in server-side code
+3. **Always use `getUser()`**: In server code, always use `supabase.auth.getUser()` which validates JWT signature
+4. **Don't trust `getSession()`**: Never trust `supabase.auth.getSession()` in server code - it doesn't validate tokens
+5. **Validate all input**: Use Zod schemas to validate request bodies
+6. **Handle errors gracefully**: Return appropriate HTTP status codes and user-friendly messages
+7. **Log security events**: Log failed auth attempts (without exposing sensitive data)
+
+## Common Pitfalls
+
+1. DO NOT use individual cookie methods (`get`, `set`, `remove`) - always use `getAll` and `setAll`
+2. DO NOT import from `@supabase/auth-helpers-nextjs` - use `@supabase/ssr` instead
+3. DO NOT skip the `auth.getUser()` call in proxy - it refreshes expired sessions
+4. DO NOT trust `getSession()` in server code - it doesn't validate JWT signature
+5. DO NOT expose service role key to client-side code
+6. Always handle auth state changes in Client Components with `onAuthStateChange`
+7. Always call `router.refresh()` after auth state changes to update Server Components
+8. For Next.js 16+: DO NOT use `middleware.ts` - use `proxy.ts` with exported `proxy` function instead
+
+## File Structure
+
+```
+src/
+├── proxy.ts            # Next.js proxy entry point (Next.js 16+)
+├── db/supabase/
+│   ├── client.ts       # Browser client (Client Components)
+│   ├── server.ts       # Server client (Server Components, Route Handlers)
+│   ├── admin.ts        # Admin client (privileged operations)
+│   ├── middleware.ts   # Session refresh helper (updateSession function)
+│   └── database.types.ts # Generated database types
+├── app/
+│   ├── (auth)/         # Auth pages route group
+│   │   ├── layout.tsx
+│   │   ├── login/page.tsx
+│   │   ├── register/page.tsx
+│   │   ├── reset-password/page.tsx
+│   │   └── update-password/page.tsx
+│   └── api/auth/
+│       ├── login/route.ts
+│       ├── register/route.ts
+│       ├── logout/route.ts
+│       └── delete-account/route.ts
+├── components/auth/
+│   ├── LoginForm.tsx
+│   ├── RegisterForm.tsx
+│   ├── ResetPasswordForm.tsx
+│   └── UpdatePasswordForm.tsx
+└── lib/services/
+    └── auth.service.ts # Auth-related business logic
+```
+
+**Proxy naming convention (Next.js 16+ requirement):**
+- The proxy file MUST be named `proxy.ts` (or `proxy.js`)
+- It MUST be placed at the project root OR inside `src/` (if using src directory)
+- The exported function MUST be named `proxy`
+- The old `middleware.ts` convention is deprecated as of Next.js 16
+
+**Note**: The `src/db/supabase/middleware.ts` file is a helper module (not the Next.js proxy entry point) that contains the `updateSession` function for refreshing auth sessions.

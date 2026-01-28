@@ -4,7 +4,7 @@ import { updateSession } from "@/db/supabase/middleware";
 /**
  * Public routes that don't require authentication
  */
-const PUBLIC_ROUTES = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_ROUTES = ["/login", "/register", "/reset-password"];
 
 /**
  * Routes that require completed onboarding
