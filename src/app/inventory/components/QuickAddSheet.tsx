@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import type { UnitDTO, InventoryItemCreateCommand } from "@/types";
+import { ProductAutocomplete } from "./ProductAutocomplete";
+import type { UnitDTO, InventoryItemCreateCommand, ProductDTO, UnitBriefDTO } from "@/types";
 import { INVENTORY_STRINGS, DEFAULT_QUICK_ADD_FORM_STATE } from "../types";
 import type { QuickAddFormState } from "../types";
 
@@ -41,8 +42,8 @@ interface QuickAddSheetProps {
 function validateForm(form: QuickAddFormState): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  // Require product name
-  if (!form.customName.trim()) {
+  // Require either product from catalog or custom name
+  if (!form.productId && !form.customName.trim()) {
     errors.customName = INVENTORY_STRINGS.validation.productRequired;
   }
 
@@ -77,12 +78,37 @@ export function QuickAddSheet({ isOpen, onOpenChange, onSubmit, units }: QuickAd
     }
   }, [isOpen]);
 
-  const handleNameChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle product selection from catalog
+  const handleProductSelect = useCallback((product: ProductDTO) => {
     setForm((prev) => ({
       ...prev,
-      customName: e.target.value,
+      productId: product.id,
+      customName: product.name_pl, // Show name in display
       errors: { ...prev.errors, customName: "" },
     }));
+  }, []);
+
+  // Handle custom name input (when not selecting from catalog)
+  const handleCustomNameChange = useCallback((name: string) => {
+    setForm((prev) => ({
+      ...prev,
+      productId: null, // Clear product selection when typing custom name
+      customName: name,
+      errors: { ...prev.errors, customName: "" },
+    }));
+  }, []);
+
+  // Handle default unit selection from product
+  const handleDefaultUnitSelect = useCallback((unit: UnitBriefDTO) => {
+    // Only auto-select if no unit is already selected
+    setForm((prev) => {
+      if (prev.unitId !== null) return prev;
+      return {
+        ...prev,
+        unitId: unit.id,
+        errors: { ...prev.errors, unitId: "" },
+      };
+    });
   }, []);
 
   const handleQuantityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -114,9 +140,10 @@ export function QuickAddSheet({ isOpen, onOpenChange, onSubmit, units }: QuickAd
         return;
       }
 
-      // Build command
+      // Build command - use product_id if selected from catalog, otherwise custom_name
       const command: InventoryItemCreateCommand = {
-        custom_name: form.customName.trim(),
+        product_id: form.productId ?? undefined,
+        custom_name: form.productId ? undefined : form.customName.trim(),
         quantity: form.quantity ? parseFloat(form.quantity) : null,
         unit_id: form.unitId,
         is_staple: false,
@@ -151,19 +178,20 @@ export function QuickAddSheet({ isOpen, onOpenChange, onSubmit, units }: QuickAd
         </SheetHeader>
 
         <form id={formId} onSubmit={handleSubmit} className="space-y-4 py-4">
-          {/* Product Name */}
+          {/* Product Selection */}
           <div className="space-y-2">
             <Label htmlFor={`${formId}-name`}>{INVENTORY_STRINGS.form.product} *</Label>
-            <Input
+            <ProductAutocomplete
               id={`${formId}-name`}
-              type="text"
-              value={form.customName}
-              onChange={handleNameChange}
-              placeholder={INVENTORY_STRINGS.form.productPlaceholder}
+              selectedProductId={form.productId}
+              customName={form.customName}
+              onProductSelect={handleProductSelect}
+              onCustomNameChange={handleCustomNameChange}
+              onDefaultUnitSelect={handleDefaultUnitSelect}
               disabled={form.isSubmitting}
-              aria-invalid={form.errors.customName ? "true" : "false"}
+              placeholder={INVENTORY_STRINGS.form.productPlaceholder}
+              hasError={!!form.errors.customName}
               aria-describedby={form.errors.customName ? `${formId}-name-error` : undefined}
-              autoFocus
             />
             {form.errors.customName && (
               <p id={`${formId}-name-error`} className="text-destructive text-sm" role="alert">

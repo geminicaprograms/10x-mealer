@@ -16,6 +16,8 @@ import type {
   UnitsResponseDTO,
   StaplesInitResponseDTO,
   ErrorResponseDTO,
+  ProductSearchResponseDTO,
+  ProductDTO,
 } from "@/types";
 import type { FilterState, ApiError } from "@/app/inventory/types";
 
@@ -385,5 +387,48 @@ export const unitsApi = {
    */
   async list(): Promise<UnitsResponseDTO> {
     return get<UnitsResponseDTO>("/api/units");
+  },
+};
+
+// =============================================================================
+// Products API
+// =============================================================================
+
+/**
+ * Parameters for searching products.
+ */
+export interface SearchProductsParams {
+  /** Search query (minimum 2 characters) */
+  query: string;
+  /** Optional category filter */
+  categoryId?: number;
+  /** Maximum results to return (1-20, default 10) */
+  limit?: number;
+}
+
+/**
+ * Products API methods.
+ */
+export const productsApi = {
+  /**
+   * Searches products in the catalog for autocomplete.
+   *
+   * @param params - Search parameters
+   * @returns List of matching products
+   */
+  async search(params: SearchProductsParams): Promise<ProductDTO[]> {
+    const searchParams = new URLSearchParams();
+    searchParams.set("q", params.query);
+
+    if (params.categoryId !== undefined) {
+      searchParams.set("category_id", String(params.categoryId));
+    }
+
+    if (params.limit !== undefined) {
+      searchParams.set("limit", String(params.limit));
+    }
+
+    const response = await get<ProductSearchResponseDTO>(`/api/products/search?${searchParams.toString()}`);
+    return response.data;
   },
 };
