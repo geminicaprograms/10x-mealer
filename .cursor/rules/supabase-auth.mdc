@@ -213,10 +213,10 @@ import { updateSession } from "@/db/supabase/middleware";
 const PUBLIC_ROUTES = ["/login", "/register", "/reset-password"];
 
 /**
- * Routes that require completed onboarding
- * AI features are blocked for users with pending onboarding
+ * Protected routes that require authentication.
+ * Unauthenticated users will be redirected to login.
  */
-const PROTECTED_AI_ROUTES = ["/api/ai/"];
+const PROTECTED_ROUTES = ["/onboarding", "/inventory", "/recipes", "/shopping-list", "/settings"];
 
 /**
  * Check if the path matches any of the routes

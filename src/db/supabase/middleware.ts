@@ -1,7 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 
-export async function updateSession(request: NextRequest) {
+export interface SessionResult {
+  response: NextResponse;
+  user: User | null;
+}
+
+export async function updateSession(request: NextRequest): Promise<SessionResult> {
   let response = NextResponse.next({
     request: {
       headers: request.headers,
@@ -31,7 +37,9 @@ export async function updateSession(request: NextRequest) {
 
   // This will refresh session if expired - required for Server Components
   // https://supabase.com/docs/guides/auth/server-side/nextjs
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  return response;
+  return { response, user };
 }
