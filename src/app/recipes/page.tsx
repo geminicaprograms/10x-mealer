@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { BottomNavigation } from "@/components/BottomNavigation";
+import { Header } from "@/components/Header";
 import { useRecipeStorage, useRecipeParse, useAIUsage } from "./hooks";
 import { AIUsageIndicator, LoadingOverlay, RecipeInputSection, RecentRecipesList } from "./components";
 import { RECIPES_STRINGS } from "./types";
@@ -141,36 +142,41 @@ export default function RecipesPage() {
   const isLoading = isParsingUrl || isParsingText;
 
   return (
-    <div className="container mx-auto max-w-2xl space-y-6 px-4 pt-6 pb-24">
-      {/* Page Header */}
-      <header className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{RECIPES_STRINGS.page.title}</h1>
-        <AIUsageIndicator usage={usage} />
-      </header>
+    <div className="bg-background min-h-screen">
+      {/* Header */}
+      <Header title={RECIPES_STRINGS.page.title} showSettings />
 
-      {/* Recipe Input Section */}
-      <RecipeInputSection
-        onParseUrl={handleParseUrl}
-        onParseText={handleParseText}
-        isLoadingUrl={isParsingUrl}
-        isLoadingText={isParsingText}
-        urlError={urlError}
-        textError={textError}
-      />
+      {/* Main Content */}
+      <div className="container mx-auto max-w-2xl space-y-6 px-4 pt-6 pb-24">
+        {/* AI Usage Indicator */}
+        <div className="flex justify-end">
+          <AIUsageIndicator usage={usage} />
+        </div>
 
-      {/* Recent Recipes List */}
-      <RecentRecipesList
-        recipes={recipes}
-        onRecipeClick={handleRecipeClick}
-        onRecipeDelete={handleRecipeDelete}
-        isLoading={isLoadingRecipes}
-      />
+        {/* Recipe Input Section */}
+        <RecipeInputSection
+          onParseUrl={handleParseUrl}
+          onParseText={handleParseText}
+          isLoadingUrl={isParsingUrl}
+          isLoadingText={isParsingText}
+          urlError={urlError}
+          textError={textError}
+        />
 
-      {/* Loading Overlay */}
-      <LoadingOverlay
-        isVisible={isLoading}
-        message={isParsingText ? RECIPES_STRINGS.loading.parsingText : RECIPES_STRINGS.loading.parsingUrl}
-      />
+        {/* Recent Recipes List */}
+        <RecentRecipesList
+          recipes={recipes}
+          onRecipeClick={handleRecipeClick}
+          onRecipeDelete={handleRecipeDelete}
+          isLoading={isLoadingRecipes}
+        />
+
+        {/* Loading Overlay */}
+        <LoadingOverlay
+          isVisible={isLoading}
+          message={isParsingText ? RECIPES_STRINGS.loading.parsingText : RECIPES_STRINGS.loading.parsingUrl}
+        />
+      </div>
 
       {/* Bottom Navigation */}
       <BottomNavigation />

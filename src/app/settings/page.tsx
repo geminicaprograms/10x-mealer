@@ -11,6 +11,7 @@
  */
 
 import { BottomNavigation } from "@/components/BottomNavigation";
+import { Header } from "@/components/Header";
 import { SettingsContainer } from "./components";
 import { SETTINGS_STRINGS } from "./types";
 
@@ -21,12 +22,8 @@ import { SETTINGS_STRINGS } from "./types";
 export default function SettingsPage() {
   return (
     <div className="bg-background min-h-screen">
-      {/* Header */}
-      <header className="bg-background sticky top-0 z-40 border-b">
-        <div className="container mx-auto flex h-14 items-center px-4">
-          <h1 className="text-lg font-semibold">{SETTINGS_STRINGS.page.title}</h1>
-        </div>
-      </header>
+      {/* Header - no settings icon since we're on settings page */}
+      <Header title={SETTINGS_STRINGS.page.title} showSettings={false} />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-4 pb-24" role="main" aria-label={SETTINGS_STRINGS.page.title}>

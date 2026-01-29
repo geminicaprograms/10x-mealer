@@ -5,15 +5,19 @@
  *
  * Custom hook that encapsulates all settings page state and logic.
  * Provides data fetching, state management, and action handlers.
+ *
+ * Now integrates with ProfileContext and AIUsageContext for centralized
+ * state management and reduced API calls.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import type { ProfileDTO, ProfileUpdateCommand, AIUsageDTO, SystemConfigDTO, DeleteAccountCommand } from "@/types";
 import { settingsApi, SettingsApiError } from "@/lib/services/settings-api";
 import { createClient } from "@/db/supabase/client";
+import { useProfile, useAIUsage, useAuth } from "@/contexts";
 
 import type { SettingsLoadingState, SettingsErrorState } from "../types";
 import { DEFAULT_LOADING_STATE, DEFAULT_ERROR_STATE, SETTINGS_STRINGS } from "../types";
@@ -71,20 +75,62 @@ export function useSettings(): UseSettingsReturn {
   const router = useRouter();
 
   // ---------------------------------------------------------------------------
-  // State
+  // Context Integration
   // ---------------------------------------------------------------------------
 
-  const [profile, setProfile] = useState<ProfileDTO | null>(null);
-  const [aiUsage, setAIUsage] = useState<AIUsageDTO | null>(null);
-  const [config, setConfig] = useState<SystemConfigDTO | null>(null);
+  // Use centralized contexts for profile and AI usage
+  const {
+    profile: contextProfile,
+    isLoading: isContextProfileLoading,
+    error: contextProfileError,
+    updateProfile: contextUpdateProfile,
+    refetch: refetchProfile,
+  } = useProfile();
 
-  const [loadingState, setLoadingState] = useState<SettingsLoadingState>(DEFAULT_LOADING_STATE);
+  const {
+    usage: contextAIUsage,
+    isLoading: isContextAIUsageLoading,
+    error: contextAIUsageError,
+    refetch: refetchAIUsage,
+  } = useAIUsage();
+
+  const { signOut } = useAuth();
+
+  // ---------------------------------------------------------------------------
+  // Local State (for config and UI state)
+  // ---------------------------------------------------------------------------
+
+  const [config, setConfig] = useState<SystemConfigDTO | null>(null);
+  const [loadingState, setLoadingState] = useState<SettingsLoadingState>({
+    ...DEFAULT_LOADING_STATE,
+    // Profile and AI usage loading comes from context
+    profile: false,
+    aiUsage: false,
+  });
   const [errors, setErrors] = useState<SettingsErrorState>(DEFAULT_ERROR_STATE);
 
   // Modal/Sheet states
   const [isEditSheetOpen, setIsEditSheetOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+
+  // ---------------------------------------------------------------------------
+  // Derived State from Contexts
+  // ---------------------------------------------------------------------------
+
+  // Use profile from context
+  const profile = contextProfile;
+  const aiUsage = contextAIUsage;
+
+  // Merge context errors with local errors
+  const mergedErrors = useMemo<SettingsErrorState>(
+    () => ({
+      ...errors,
+      profile: contextProfileError?.message ?? errors.profile,
+      aiUsage: contextAIUsageError?.message ?? errors.aiUsage,
+    }),
+    [errors, contextProfileError, contextAIUsageError]
+  );
 
   // ---------------------------------------------------------------------------
   // Loading Helpers
@@ -99,50 +145,8 @@ export function useSettings(): UseSettingsReturn {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Data Fetching
+  // Data Fetching (only config now - profile/aiUsage come from context)
   // ---------------------------------------------------------------------------
-
-  const fetchProfile = useCallback(async () => {
-    setPartialLoading({ profile: true });
-    setPartialError({ profile: null });
-
-    try {
-      const data = await settingsApi.getProfile();
-      setProfile(data);
-    } catch (error) {
-      const message = error instanceof SettingsApiError ? error.message : SETTINGS_STRINGS.errors.generic;
-      setPartialError({ profile: message });
-
-      // Handle 401 - redirect to login
-      if (error instanceof SettingsApiError && error.status === 401) {
-        toast.error(SETTINGS_STRINGS.errors.sessionExpired);
-        router.push("/login");
-      }
-    } finally {
-      setPartialLoading({ profile: false });
-    }
-  }, [router, setPartialError, setPartialLoading]);
-
-  const fetchAIUsage = useCallback(async () => {
-    setPartialLoading({ aiUsage: true });
-    setPartialError({ aiUsage: null });
-
-    try {
-      const data = await settingsApi.getAIUsage();
-      setAIUsage(data);
-    } catch (error) {
-      const message = error instanceof SettingsApiError ? error.message : SETTINGS_STRINGS.errors.generic;
-      setPartialError({ aiUsage: message });
-
-      // Handle 401 - redirect to login
-      if (error instanceof SettingsApiError && error.status === 401) {
-        toast.error(SETTINGS_STRINGS.errors.sessionExpired);
-        router.push("/login");
-      }
-    } finally {
-      setPartialLoading({ aiUsage: false });
-    }
-  }, [router, setPartialError, setPartialLoading]);
 
   const fetchConfig = useCallback(async () => {
     setPartialLoading({ config: true });
@@ -166,16 +170,18 @@ export function useSettings(): UseSettingsReturn {
   }, [router, setPartialError, setPartialLoading]);
 
   const fetchAllData = useCallback(() => {
-    // Fetch all data in parallel
-    fetchProfile();
-    fetchAIUsage();
+    // Profile and AI usage are fetched by contexts automatically
+    // Only need to fetch config locally
     fetchConfig();
-  }, [fetchProfile, fetchAIUsage, fetchConfig]);
+    // Trigger context refetches to ensure fresh data
+    refetchProfile();
+    refetchAIUsage();
+  }, [fetchConfig, refetchProfile, refetchAIUsage]);
 
-  // Initial data load
+  // Initial config load
   useEffect(() => {
-    fetchAllData();
-  }, [fetchAllData]);
+    fetchConfig();
+  }, [fetchConfig]);
 
   // ---------------------------------------------------------------------------
   // Sheet/Dialog State Management
@@ -215,32 +221,27 @@ export function useSettings(): UseSettingsReturn {
       setPartialError({ save: null });
 
       try {
-        const updatedProfile = await settingsApi.updateProfile(data);
-        setProfile(updatedProfile);
+        // Use context's updateProfile for centralized state management
+        await contextUpdateProfile(data);
         setIsEditSheetOpen(false);
         toast.success(SETTINGS_STRINGS.preferencesEdit.success);
       } catch (error) {
-        const message = error instanceof SettingsApiError ? error.message : SETTINGS_STRINGS.errors.generic;
+        const message = error instanceof Error ? error.message : SETTINGS_STRINGS.errors.generic;
         setPartialError({ save: message });
         toast.error(message);
-
-        // Handle 401 - redirect to login
-        if (error instanceof SettingsApiError && error.status === 401) {
-          router.push("/login");
-        }
       } finally {
         setPartialLoading({ saving: false });
       }
     },
-    [router, setPartialError, setPartialLoading]
+    [contextUpdateProfile, setPartialError, setPartialLoading]
   );
 
   const logout = useCallback(async () => {
     setPartialLoading({ loggingOut: true });
 
     try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
+      // Use context's signOut for centralized auth management
+      await signOut();
 
       // Clear any local storage if needed
       if (typeof window !== "undefined") {
@@ -255,7 +256,7 @@ export function useSettings(): UseSettingsReturn {
     } finally {
       setPartialLoading({ loggingOut: false });
     }
-  }, [router, setPartialLoading]);
+  }, [router, setPartialLoading, signOut]);
 
   const deleteAccount = useCallback(
     async (data: DeleteAccountCommand) => {
@@ -295,7 +296,8 @@ export function useSettings(): UseSettingsReturn {
   // Computed Values
   // ---------------------------------------------------------------------------
 
-  const isLoading = loadingState.profile || loadingState.aiUsage || loadingState.config;
+  // Combine context loading states with local loading states
+  const isLoading = isContextProfileLoading || isContextAIUsageLoading || loadingState.config;
 
   // ---------------------------------------------------------------------------
   // Return
@@ -309,15 +311,15 @@ export function useSettings(): UseSettingsReturn {
 
     // Loading states
     isLoading,
-    isLoadingProfile: loadingState.profile,
-    isLoadingAIUsage: loadingState.aiUsage,
+    isLoadingProfile: isContextProfileLoading,
+    isLoadingAIUsage: isContextAIUsageLoading,
     isLoadingConfig: loadingState.config,
     isSavingPreferences: loadingState.saving,
     isLoggingOut: loadingState.loggingOut,
     isDeletingAccount: loadingState.deletingAccount,
 
-    // Error states
-    errors,
+    // Error states (use merged errors)
+    errors: mergedErrors,
 
     // Edit sheet state
     isEditSheetOpen,

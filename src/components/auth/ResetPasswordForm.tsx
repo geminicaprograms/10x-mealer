@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/db/supabase/client";
 
 /**
  * Validation schema for password reset request.
@@ -22,16 +23,12 @@ const resetPasswordSchema = z.object({
 
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
-interface ResetPasswordFormProps {
-  /** Callback when form is successfully submitted */
-  onSubmit?: (data: ResetPasswordFormData) => Promise<void>;
-}
-
 /**
  * Password reset request form component.
+ * Integrates directly with Supabase Auth to send password reset emails.
  * Displays success message after submission regardless of email existence (security).
  */
-export function ResetPasswordForm({ onSubmit }: ResetPasswordFormProps) {
+export function ResetPasswordForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -53,10 +50,17 @@ export function ResetPasswordForm({ onSubmit }: ResetPasswordFormProps) {
     setServerError(null);
 
     try {
-      if (onSubmit) {
-        await onSubmit(data);
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+
+      if (error) {
+        // Log the error but don't expose details to user for security
+        console.error("Password reset error:", error.message);
       }
-      // Always show success message for security
+
+      // Always show success message for security (don't reveal if email exists)
       setIsSubmitted(true);
     } catch {
       setServerError("Wystąpił błąd. Spróbuj ponownie później.");

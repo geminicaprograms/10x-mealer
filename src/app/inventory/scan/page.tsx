@@ -10,10 +10,8 @@
  */
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Header } from "@/components/Header";
 import {
   AIUsageIndicator,
   ImageUploadSection,
@@ -33,8 +31,6 @@ import { SCAN_STRINGS } from "./types";
 // =============================================================================
 
 export default function ReceiptScanPage() {
-  const router = useRouter();
-
   const {
     // State
     phase,
@@ -65,11 +61,6 @@ export default function ReceiptScanPage() {
     dismissPartialSuccess,
   } = useReceiptScan();
 
-  // Navigate back to inventory
-  const handleBack = useCallback(() => {
-    router.push("/inventory");
-  }, [router]);
-
   // Handle cancel during verification
   const handleCancel = useCallback(() => {
     reset();
@@ -85,19 +76,12 @@ export default function ReceiptScanPage() {
   const isVerificationPhase = phase === "verification" || phase === "submitting";
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="border-b bg-white dark:bg-gray-950">
-        <div className="container flex h-14 items-center gap-4 px-4">
-          <Button variant="ghost" size="icon" onClick={handleBack} aria-label={SCAN_STRINGS.back}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-lg font-semibold">{SCAN_STRINGS.pageTitle}</h1>
-        </div>
-      </header>
+    <div className="bg-background flex min-h-screen flex-col">
+      {/* Header with back navigation to inventory */}
+      <Header title={SCAN_STRINGS.pageTitle} showBack backHref="/inventory" showSettings={false} />
 
       {/* Main content */}
-      <main className="container flex-1 px-4 py-6" role="main">
+      <main className="container mx-auto flex-1 px-4 py-6" role="main">
         {/* AI Usage Indicator */}
         <div className="mb-6">
           <AIUsageIndicator usage={usage} />

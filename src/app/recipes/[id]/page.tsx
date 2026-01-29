@@ -9,9 +9,8 @@
  */
 
 import { use } from "react";
-import { ArrowLeft } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Header } from "@/components/Header";
 import { useRecipeDetail } from "./hooks";
 import { RecipeHeader, SubstitutionAnalysisSection, CookedThisButton, CookedThisDialog } from "./components";
 import { RECIPE_DETAIL_STRINGS } from "./types";
@@ -74,20 +73,8 @@ export default function RecipeDetailPage({ params }: RecipeDetailPageProps) {
   if (recipeError || !recipe) {
     return (
       <div className="bg-background flex min-h-screen flex-col">
-        <header className="bg-background sticky top-0 z-10 border-b px-4 py-3">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={navigateBack}
-              aria-label={RECIPE_DETAIL_STRINGS.page.backLabel}
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <h1 className="text-lg font-semibold">{RECIPE_DETAIL_STRINGS.page.title}</h1>
-          </div>
-        </header>
-        <main className="flex flex-1 items-center justify-center p-4">
+        <Header title={RECIPE_DETAIL_STRINGS.page.title} showBack backHref="/recipes" showSettings={false} />
+        <main className="container mx-auto flex flex-1 items-center justify-center p-4">
           <p className="text-muted-foreground">{recipeError}</p>
         </main>
       </div>
@@ -113,17 +100,10 @@ export default function RecipeDetailPage({ params }: RecipeDetailPageProps) {
       </a>
 
       {/* Header with back navigation */}
-      <header className="bg-background sticky top-0 z-10 border-b px-4 py-3" role="banner">
-        <nav className="flex items-center gap-3" aria-label="Nawigacja strony">
-          <Button variant="ghost" size="icon" onClick={navigateBack} aria-label={RECIPE_DETAIL_STRINGS.page.backLabel}>
-            <ArrowLeft className="h-5 w-5" aria-hidden="true" />
-          </Button>
-          <h1 className="text-lg font-semibold">{RECIPE_DETAIL_STRINGS.page.title}</h1>
-        </nav>
-      </header>
+      <Header title={RECIPE_DETAIL_STRINGS.page.title} showBack backHref="/recipes" showSettings={false} />
 
       {/* Main Content */}
-      <main id="main-content" className="flex-1 px-4 py-6 pb-24" role="main">
+      <main id="main-content" className="container mx-auto flex-1 px-4 py-6 pb-24" role="main">
         {/* Recipe Header with title and source */}
         <RecipeHeader title={recipe.title} sourceUrl={recipe.source_url} sourceDomain={recipe.source_domain} />
 

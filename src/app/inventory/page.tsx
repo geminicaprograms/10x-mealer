@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 
 import type { InventoryItemDTO, InventoryItemCreateCommand } from "@/types";
 import { BottomNavigation } from "@/components/BottomNavigation";
+import { Header } from "@/components/Header";
 
 import { useInventory } from "./hooks/useInventory";
 import {
@@ -28,29 +29,6 @@ import {
   FloatingActionButton,
 } from "./components";
 import { DEFAULT_FILTER_STATE } from "./types";
-
-// =============================================================================
-// Icons
-// =============================================================================
-
-function SettingsIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
-  );
-}
 
 // =============================================================================
 // Page Component
@@ -108,10 +86,6 @@ export default function InventoryPage() {
 
   const handleScanClick = useCallback(() => {
     router.push("/inventory/scan");
-  }, [router]);
-
-  const handleSettingsClick = useCallback(() => {
-    router.push("/settings");
   }, [router]);
 
   // ---------------------------------------------------------------------------
@@ -189,18 +163,7 @@ export default function InventoryPage() {
   return (
     <div className="bg-background min-h-screen">
       {/* Header */}
-      <header className="bg-background sticky top-0 z-40 border-b">
-        <div className="container mx-auto flex h-14 items-center justify-between px-4">
-          <h1 className="text-lg font-semibold">Mealer</h1>
-          <button
-            onClick={handleSettingsClick}
-            className="hover:bg-muted rounded-md p-2 transition-colors"
-            aria-label="Ustawienia"
-          >
-            <SettingsIcon className="h-5 w-5" />
-          </button>
-        </div>
-      </header>
+      <Header showSettings />
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-4 pb-32" role="main" aria-label="Zarządzanie inwentarzem">

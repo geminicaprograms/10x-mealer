@@ -5,6 +5,8 @@
  *
  * Custom hook encapsulating all state and logic for the receipt scan flow.
  * Manages image selection, AI processing, verification, and submission.
+ *
+ * Now integrates with AIUsageContext for centralized usage tracking.
  */
 
 import { useState, useCallback, useEffect, useMemo } from "react";
@@ -14,6 +16,7 @@ import { toast } from "sonner";
 import { scanApi, fileToBase64, ScanApiError } from "@/lib/services/scan-api";
 import { inventoryApi } from "@/lib/services/inventory-api";
 import { unitsApi } from "@/lib/services/inventory-api";
+import { useAIUsage } from "@/contexts";
 import type { UnitDTO, ReceiptScanItemDTO, InventoryItemCreateCommand, ReceiptImageType } from "@/types";
 import {
   type ScanPhase,
@@ -133,6 +136,13 @@ export function useReceiptScan(): UseReceiptScanReturn {
   const router = useRouter();
 
   // ==========================================================================
+  // Context Integration
+  // ==========================================================================
+
+  // Use centralized AI usage context
+  const { usage: contextUsage, canScan: contextCanScan, refetch: refetchUsage } = useAIUsage();
+
+  // ==========================================================================
   // State
   // ==========================================================================
 
@@ -140,11 +150,24 @@ export function useReceiptScan(): UseReceiptScanReturn {
   const [image, setImage] = useState<ImageFile | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [items, setItems] = useState<VerificationItemViewModel[]>([]);
-  const [usage, setUsage] = useState<AIUsageState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showRateLimitDialog, setShowRateLimitDialog] = useState(false);
   const [partialSuccessResult, setPartialSuccessResult] = useState<PartialSuccessResult | null>(null);
   const [units, setUnits] = useState<UnitDTO[]>([]);
+
+  // ==========================================================================
+  // Derived State from Context
+  // ==========================================================================
+
+  // Transform context usage to local AIUsageState format
+  const usage: AIUsageState | null = useMemo(() => {
+    if (!contextUsage) return null;
+    return {
+      scansUsed: contextUsage.receipt_scans.used,
+      scansLimit: contextUsage.receipt_scans.limit,
+      scansRemaining: contextUsage.receipt_scans.remaining,
+    };
+  }, [contextUsage]);
 
   // ==========================================================================
   // Computed Values
@@ -154,8 +177,9 @@ export function useReceiptScan(): UseReceiptScanReturn {
   const isSubmitting = phase === "submitting";
 
   const canProcess = useMemo(() => {
-    return image !== null && !isProcessing && !isSubmitting && (usage === null || usage.scansRemaining > 0);
-  }, [image, isProcessing, isSubmitting, usage]);
+    // Use context's canScan for rate limit check
+    return image !== null && !isProcessing && !isSubmitting && contextCanScan;
+  }, [image, isProcessing, isSubmitting, contextCanScan]);
 
   const validItemsCount = useMemo(() => {
     return items.filter(isValidItem).length;
@@ -166,30 +190,16 @@ export function useReceiptScan(): UseReceiptScanReturn {
   }, [validItemsCount, isSubmitting]);
 
   // ==========================================================================
-  // Initial Data Fetching
+  // Initial Data Fetching (only units now - usage comes from context)
   // ==========================================================================
 
   useEffect(() => {
-    async function fetchInitialData() {
+    async function fetchUnits() {
       try {
-        const [usageResponse, unitsResponse] = await Promise.all([
-          scanApi.getUsage().catch((err) => {
-            console.error("Failed to fetch AI usage:", err);
-            return null;
-          }),
-          unitsApi.list().catch((err) => {
-            console.error("Failed to fetch units:", err);
-            return { data: [] };
-          }),
-        ]);
-
-        if (usageResponse) {
-          setUsage({
-            scansUsed: usageResponse.receipt_scans.used,
-            scansLimit: usageResponse.receipt_scans.limit,
-            scansRemaining: usageResponse.receipt_scans.remaining,
-          });
-        }
+        const unitsResponse = await unitsApi.list().catch((err) => {
+          console.error("Failed to fetch units:", err);
+          return { data: [] };
+        });
 
         setUnits(unitsResponse.data);
       } catch (err) {
@@ -197,7 +207,7 @@ export function useReceiptScan(): UseReceiptScanReturn {
       }
     }
 
-    fetchInitialData();
+    fetchUnits();
   }, []);
 
   // ==========================================================================
@@ -251,8 +261,8 @@ export function useReceiptScan(): UseReceiptScanReturn {
   const processReceipt = useCallback(async () => {
     if (!image || !canProcess) return;
 
-    // Check rate limit
-    if (usage && usage.scansRemaining === 0) {
+    // Check rate limit using context
+    if (!contextCanScan) {
       setShowRateLimitDialog(true);
       return;
     }
@@ -266,12 +276,8 @@ export function useReceiptScan(): UseReceiptScanReturn {
         imageType: image.mimeType as ReceiptImageType,
       });
 
-      // Update usage from response
-      setUsage({
-        scansUsed: response.usage.scans_used_today,
-        scansLimit: usage?.scansLimit ?? 5,
-        scansRemaining: response.usage.scans_remaining,
-      });
+      // Refetch usage from context to get updated values
+      await refetchUsage();
 
       // Transform items for verification
       const verificationItems = transformScanItems(response.items);
@@ -290,6 +296,8 @@ export function useReceiptScan(): UseReceiptScanReturn {
         if (err.isRateLimited()) {
           setShowRateLimitDialog(true);
           setPhase("upload");
+          // Refetch usage to sync with server state
+          await refetchUsage();
           return;
         }
 
@@ -318,7 +326,7 @@ export function useReceiptScan(): UseReceiptScanReturn {
 
       setPhase("upload");
     }
-  }, [image, canProcess, usage, router]);
+  }, [image, canProcess, contextCanScan, router, refetchUsage]);
 
   // ==========================================================================
   // Verification Item Management
