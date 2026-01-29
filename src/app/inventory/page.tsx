@@ -14,6 +14,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 import type { InventoryItemDTO, InventoryItemCreateCommand } from "@/types";
+import { BottomNavigation } from "@/components/BottomNavigation";
 
 import { useInventory } from "./hooks/useInventory";
 import {
@@ -280,6 +281,9 @@ export default function InventoryPage() {
         }}
         onConfirm={handleDeleteConfirm}
       />
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
     </div>
   );
 }
