@@ -43,9 +43,9 @@ export async function proxy(request: NextRequest) {
 
   // Allow public routes without any checks
   if (matchesRoute(pathname, PUBLIC_ROUTES)) {
-    // If user is already authenticated, redirect away from auth pages to home
+    // If user is already authenticated, redirect away from auth pages to inventory
     if (user) {
-      return NextResponse.redirect(new URL("/", request.url));
+      return NextResponse.redirect(new URL("/inventory", request.url));
     }
     return response;
   }
