@@ -9,7 +9,6 @@
 
 import { z } from "zod";
 import * as cheerio from "cheerio";
-import type { ParsedIngredientDTO } from "@/types";
 
 // =============================================================================
 // Constants
@@ -111,7 +110,8 @@ export interface DomainValidationResult {
  */
 export const recipeParseSchema = z.object({
   url: z
-    .string({ required_error: "URL is required" })
+    .string()
+    .min(1, "URL is required")
     .url("Invalid URL format")
     .refine((url) => url.startsWith("https://"), {
       message: "Only HTTPS URLs are allowed",
@@ -124,7 +124,7 @@ export const recipeParseSchema = z.object({
  */
 export const recipeParseTextSchema = z.object({
   text: z
-    .string({ required_error: "Text is required" })
+    .string()
     .min(1, "Text is required")
     .max(MAX_TEXT_LENGTH, `Text exceeds ${MAX_TEXT_LENGTH} character limit`)
     .transform((val) => val.trim()),
