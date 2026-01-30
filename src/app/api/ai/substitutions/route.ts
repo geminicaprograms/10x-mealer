@@ -7,7 +7,7 @@ import {
   convertInventoryForAI,
   generateWarnings,
 } from "@/lib/services/ai.service";
-import { generateSubstitutions, ExternalServiceError } from "@/lib/services/openrouter.client";
+import { generateSubstitutions, ExternalServiceError } from "@/lib/services/openrouter.service";
 import { getProfileByUserId } from "@/lib/services/profile.service";
 import { listInventoryItems } from "@/lib/services/inventory.service";
 import {

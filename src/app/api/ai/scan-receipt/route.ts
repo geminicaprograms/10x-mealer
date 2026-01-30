@@ -7,7 +7,7 @@ import {
   matchProductByName,
   suggestUnitForItem,
 } from "@/lib/services/ai.service";
-import { scanReceiptImage } from "@/lib/services/openrouter.client";
+import { scanReceiptImage, ExternalServiceError } from "@/lib/services/openrouter.service";
 import {
   unauthorizedError,
   validationError,
@@ -16,7 +16,6 @@ import {
   externalServiceError,
 } from "@/lib/api/errors";
 import type { ReceiptScanResponseDTO, ReceiptScanItemDTO, ErrorResponseDTO, ValidationErrorDetailDTO } from "@/types";
-import { ExternalServiceError } from "@/lib/services/openrouter.client";
 
 /**
  * POST /api/ai/scan-receipt

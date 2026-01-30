@@ -8,7 +8,7 @@ import {
   getDomainFromUrl,
   ContentFetchError,
 } from "@/lib/services/recipe.service";
-import { parseRecipeFromHTML, ExternalServiceError } from "@/lib/services/openrouter.client";
+import { parseRecipeFromHTML, ExternalServiceError } from "@/lib/services/openrouter.service";
 import {
   unauthorizedError,
   forbiddenError,
@@ -124,6 +124,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<RecipePar
     // 6. Extract recipe content from HTML
     const domain = getDomainFromUrl(url);
     const extractedContent = extractRecipeContent(fetchedContent.html, domain);
+
+    // Log extracted content for debugging
+    console.log("Recipe content extraction:", {
+      endpoint: "/api/recipes/parse",
+      url,
+      domain,
+      fetchedHtmlLength: fetchedContent.html.length,
+      extractedContentLength: extractedContent?.length ?? 0,
+      extractedContentPreview: extractedContent?.substring(0, 200) ?? "null",
+    });
 
     if (!extractedContent || extractedContent.trim().length < 50) {
       return unprocessableEntityError("Could not extract recipe content from page");

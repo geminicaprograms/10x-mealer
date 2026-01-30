@@ -36,8 +36,6 @@ export const ALLOWED_DOMAINS = [
   "www.rozkoszny.pl",
   "kwestiasmaku.com",
   "www.kwestiasmaku.com",
-  "przepisy.pl",
-  "www.przepisy.pl",
   "aniagotuje.pl",
   "www.aniagotuje.pl",
   "kuchnialidla.pl",
@@ -51,23 +49,38 @@ export const ALLOWED_DOMAINS = [
 /**
  * Domain-specific CSS selectors for better content extraction.
  * Falls back to generic extraction if domain not specified.
+ * Multiple selectors can be comma-separated for fallback.
  */
-export const DOMAIN_SELECTORS: Record<string, { title?: string; ingredients?: string }> = {
+export const DOMAIN_SELECTORS: Record<string, { title?: string; ingredients?: string[] }> = {
   "kwestiasmaku.com": {
-    title: "h1.przepis",
-    ingredients: ".skladniki-lista li",
+    title: "h1.przepis, h1.recipe-title, .recipe-header h1, article h1",
+    ingredients: [
+      ".skladniki-lista li",
+      ".ingredients-list li",
+      ".recipe-ingredients li",
+      '[class*="skladnik"] li',
+      '[class*="ingredient"] li',
+      ".przepis-skladniki li",
+    ],
   },
   "www.kwestiasmaku.com": {
-    title: "h1.przepis",
-    ingredients: ".skladniki-lista li",
+    title: "h1.przepis, h1.recipe-title, .recipe-header h1, article h1",
+    ingredients: [
+      ".skladniki-lista li",
+      ".ingredients-list li",
+      ".recipe-ingredients li",
+      '[class*="skladnik"] li',
+      '[class*="ingredient"] li',
+      ".przepis-skladniki li",
+    ],
   },
   "aniagotuje.pl": {
-    title: "h1.recipe-title",
-    ingredients: ".recipe-ingredients li",
+    title: "h1.recipe-title, .recipe-header h1, article h1",
+    ingredients: [".recipe-ingredients li", ".ingredients li", '[class*="ingredient"] li'],
   },
   "www.aniagotuje.pl": {
-    title: "h1.recipe-title",
-    ingredients: ".recipe-ingredients li",
+    title: "h1.recipe-title, .recipe-header h1, article h1",
+    ingredients: [".recipe-ingredients li", ".ingredients li", '[class*="ingredient"] li'],
   },
 };
 
@@ -80,19 +93,6 @@ export interface FetchedContent {
   html: string;
   title: string;
   contentLength: number;
-}
-
-/** LLM response for recipe parsing from URL */
-export interface LLMRecipeParseResult {
-  title: string;
-  ingredients: ParsedIngredientDTO[];
-  confidence: number;
-}
-
-/** LLM response for text parsing */
-export interface LLMTextParseResult {
-  ingredients: ParsedIngredientDTO[];
-  confidence: number;
 }
 
 /** Domain validation result */
@@ -248,7 +248,7 @@ export class ContentFetchError extends Error {
  * - Timeout enforcement (10 seconds)
  * - Content size limit (5MB)
  * - Proper HTTP error handling
- * - User-agent spoofing for better compatibility
+ * - Browser-like headers for better compatibility
  *
  * @param url - The URL to fetch (must be pre-validated)
  * @returns Fetched HTML content with metadata
@@ -262,12 +262,25 @@ export async function fetchRecipeContent(url: string): Promise<FetchedContent> {
     const response = await fetch(url, {
       method: "GET",
       headers: {
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8",
+        // Standard browser headers
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Accept-Encoding": "gzip, deflate, br",
+        // Modern Chrome User-Agent
         "User-Agent":
-          "Mozilla/5.0 (compatible; Mealer/1.0; +https://mealer.app) AppleWebKit/537.36 (KHTML, like Gecko)",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        // Security headers that browsers send
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        // Cache control
+        "Cache-Control": "max-age=0",
       },
       signal: controller.signal,
+      // Follow redirects
+      redirect: "follow",
     });
 
     clearTimeout(timeoutId);
@@ -372,14 +385,20 @@ function extractTitle($: cheerio.CheerioAPI, domain: string): string | null {
 function extractIngredients($: cheerio.CheerioAPI, domain: string): string[] {
   const ingredients: string[] = [];
 
-  // Try domain-specific selector first
+  // Try domain-specific selectors first (now supports array of selectors)
   const domainSelectors = DOMAIN_SELECTORS[domain];
   if (domainSelectors?.ingredients) {
-    $(domainSelectors.ingredients).each((_, el) => {
-      const text = $(el).text().trim();
-      if (text) ingredients.push(text);
-    });
-    if (ingredients.length > 0) return ingredients;
+    const selectorsToTry = Array.isArray(domainSelectors.ingredients)
+      ? domainSelectors.ingredients
+      : [domainSelectors.ingredients];
+
+    for (const selector of selectorsToTry) {
+      $(selector).each((_, el) => {
+        const text = $(el).text().trim();
+        if (text && text.length > 2) ingredients.push(text);
+      });
+      if (ingredients.length > 0) return ingredients;
+    }
   }
 
   // Try common ingredient list selectors
@@ -392,8 +411,16 @@ function extractIngredients($: cheerio.CheerioAPI, domain: string): string[] {
     ".skladniki-lista li",
     'ul[class*="ingredient"] li',
     'ul[class*="skladnik"] li',
+    'div[class*="ingredient"] li',
+    'div[class*="skladnik"] li',
+    '[class*="ingredient-list"] li',
+    '[class*="ingredients-list"] li',
     ".recipe-ingredient",
     ".ingredient-item",
+    ".ingredient",
+    // Try data attributes commonly used
+    "[data-ingredient]",
+    '[data-testid*="ingredient"]',
   ];
 
   for (const selector of commonIngredientSelectors) {
@@ -419,11 +446,24 @@ function extractFromJsonLd($: cheerio.CheerioAPI): { title: string; ingredients:
   try {
     const jsonLdScripts = $('script[type="application/ld+json"]');
 
+    if (jsonLdScripts.length === 0) {
+      console.log("[Recipe] No JSON-LD scripts found");
+      return null;
+    }
+
+    console.log(`[Recipe] Found ${jsonLdScripts.length} JSON-LD script(s)`);
+
     for (let i = 0; i < jsonLdScripts.length; i++) {
       const scriptContent = $(jsonLdScripts[i]).html();
       if (!scriptContent) continue;
 
-      const data = JSON.parse(scriptContent);
+      let data;
+      try {
+        data = JSON.parse(scriptContent);
+      } catch (parseError) {
+        console.log(`[Recipe] JSON-LD parse error for script ${i}:`, parseError);
+        continue;
+      }
 
       // Handle array of schemas
       const schemas = Array.isArray(data) ? data : [data];
@@ -433,6 +473,8 @@ function extractFromJsonLd($: cheerio.CheerioAPI): { title: string; ingredients:
         if (schema["@type"] === "Recipe" || (Array.isArray(schema["@type"]) && schema["@type"].includes("Recipe"))) {
           const title = schema.name || null;
           const ingredients = Array.isArray(schema.recipeIngredient) ? schema.recipeIngredient : [];
+
+          console.log(`[Recipe] Found Recipe schema: title="${title}", ingredients=${ingredients.length}`);
 
           if (title && ingredients.length > 0) {
             return { title, ingredients };
@@ -446,6 +488,8 @@ function extractFromJsonLd($: cheerio.CheerioAPI): { title: string; ingredients:
               const title = item.name || null;
               const ingredients = Array.isArray(item.recipeIngredient) ? item.recipeIngredient : [];
 
+              console.log(`[Recipe] Found Recipe in @graph: title="${title}", ingredients=${ingredients.length}`);
+
               if (title && ingredients.length > 0) {
                 return { title, ingredients };
               }
@@ -454,8 +498,10 @@ function extractFromJsonLd($: cheerio.CheerioAPI): { title: string; ingredients:
         }
       }
     }
-  } catch {
-    // JSON parsing failed, continue with DOM extraction
+
+    console.log("[Recipe] No Recipe schema with ingredients found in JSON-LD");
+  } catch (error) {
+    console.error("[Recipe] JSON-LD extraction error:", error);
   }
 
   return null;
@@ -477,15 +523,17 @@ function extractFromJsonLd($: cheerio.CheerioAPI): { title: string; ingredients:
 export function extractRecipeContent(html: string, domain: string): string {
   const $ = cheerio.load(html);
 
-  // Remove script, style, and other non-content elements
-  $("script, style, nav, header, footer, aside, .advertisement, .ads, .comments").remove();
-
-  // 1. Try JSON-LD extraction first (most reliable)
+  // 1. Try JSON-LD extraction FIRST (before removing scripts!)
   const jsonLdData = extractFromJsonLd($);
   if (jsonLdData && jsonLdData.ingredients.length > 0) {
     const ingredientsList = jsonLdData.ingredients.join("\n");
     return `Tytuł: ${jsonLdData.title}\n\nSkładniki:\n${ingredientsList}`;
   }
+
+  // Now remove script, style, and other non-content elements for DOM extraction
+  $(
+    "script, style, nav, header, footer, aside, .advertisement, .ads, .comments, .sidebar, .social-share, .related-posts"
+  ).remove();
 
   // 2. Extract title and ingredients using DOM selectors
   const title = extractTitle($, domain);
@@ -508,9 +556,34 @@ export function extractRecipeContent(html: string, domain: string): string {
   }
 
   // 3. Fallback: extract main content area text
-  const mainContent = $("main, article, .recipe, .przepis, [role='main'], .content").first().text() || $("body").text();
+  // Try multiple selectors individually to find the one with most content
+  const contentSelectors = [
+    "main",
+    "article",
+    ".recipe",
+    ".przepis",
+    ".recipe-content",
+    ".przepis-content",
+    '[role="main"]',
+    ".content",
+    ".entry-content",
+    ".post-content",
+  ];
 
-  // Clean up whitespace
+  let mainContent = "";
+  for (const selector of contentSelectors) {
+    const elementText = $(selector).first().text().trim();
+    if (elementText && elementText.length > mainContent.length) {
+      mainContent = elementText;
+    }
+  }
+
+  // If no good content found, fall back to body
+  if (mainContent.length < 100) {
+    mainContent = $("body").text().trim();
+  }
+
+  // Clean up whitespace (multiple spaces/newlines to single space)
   let content = mainContent.replace(/\s+/g, " ").trim();
 
   // Limit content length to prevent sending too much to LLM

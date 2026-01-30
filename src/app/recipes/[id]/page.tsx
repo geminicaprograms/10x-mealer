@@ -82,12 +82,8 @@ export default function RecipeDetailPage({ params }: RecipeDetailPageProps) {
   }
 
   // Determine if cooked button should be disabled
-  const isCookedButtonDisabled =
-    !analysis ||
-    isAnalyzing ||
-    !analysis.ingredients.some(
-      (ing) => (ing.status === "available" || ing.status === "partial") && ing.matchedItem && !ing.isStaple
-    );
+  // Enable when analysis is complete - dialog will handle empty deductions gracefully
+  const isCookedButtonDisabled = !analysis || isAnalyzing;
 
   return (
     <div className="bg-background flex min-h-screen flex-col">
