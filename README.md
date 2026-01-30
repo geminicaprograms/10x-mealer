@@ -34,17 +34,21 @@ Home cooks often struggle to utilize the food they buy, leading to waste and fru
 
 ## Tech Stack
 
-| Category     | Technology     | Purpose                                            |
-| ------------ | -------------- | -------------------------------------------------- |
-| **Frontend** | Next.js 15     | React framework with PWA support and API routes    |
-|              | React 19       | Interactive, stateful user interfaces              |
-|              | TypeScript 5   | Compile-time type safety                           |
-|              | Tailwind 4     | Utility-first CSS framework                        |
-|              | Shadcn/ui      | Accessible, customizable component library         |
-| **Backend**  | Supabase       | Authentication, PostgreSQL database, storage, RLS  |
-| **AI**       | OpenRouter.ai  | Multi-LLM provider API for OCR and recipe analysis |
-| **CI/CD**    | GitHub Actions | Automated testing and deployment                   |
-| **Hosting**  | DigitalOcean   | Cost-effective hosting infrastructure              |
+| Category     | Technology      | Purpose                                            |
+| ------------ | --------------- | -------------------------------------------------- |
+| **Frontend** | Next.js 15      | React framework with PWA support and API routes    |
+|              | React 19        | Interactive, stateful user interfaces              |
+|              | TypeScript 5    | Compile-time type safety                           |
+|              | Tailwind 4      | Utility-first CSS framework                        |
+|              | Shadcn/ui       | Accessible, customizable component library         |
+| **Backend**  | Supabase        | Authentication, PostgreSQL database, storage, RLS  |
+| **AI**       | OpenRouter.ai   | Multi-LLM provider API for OCR and recipe analysis |
+| **CI/CD**    | GitHub Actions  | Automated testing and deployment                   |
+| **Hosting**  | DigitalOcean    | Cost-effective hosting infrastructure              |
+| **Testing**  | Vitest          | Unit & integration test runner for Next.js/TS      |
+|              | Testing Library | React component testing utilities                  |
+|              | MSW             | API mocking for integration tests                  |
+|              | Playwright      | Cross-browser E2E testing with mobile emulation    |
 
 ## Getting Started Locally
 
@@ -86,13 +90,22 @@ Home cooks often struggle to utilize the food they buy, leading to waste and fru
 
 ## Available Scripts
 
-| Script    | Command        | Description                                            |
-| --------- | -------------- | ------------------------------------------------------ |
-| `dev`     | `pnpm dev`     | Start the development server with hot reload           |
-| `build`   | `pnpm build`   | Create an optimized production build                   |
-| `start`   | `pnpm start`   | Start the production server                            |
-| `lint`    | `pnpm lint`    | Run ESLint to check code quality                       |
-| `prepare` | `pnpm prepare` | Set up Husky git hooks (runs automatically on install) |
+| Script             | Command                 | Description                                            |
+| ------------------ | ----------------------- | ------------------------------------------------------ |
+| `dev`              | `pnpm dev`              | Start the development server with hot reload           |
+| `build`            | `pnpm build`            | Create an optimized production build                   |
+| `start`            | `pnpm start`            | Start the production server                            |
+| `lint`             | `pnpm lint`             | Run ESLint to check code quality                       |
+| `prepare`          | `pnpm prepare`          | Set up Husky git hooks (runs automatically on install) |
+| `test`             | `pnpm test`             | Run unit tests with Vitest                             |
+| `test:watch`       | `pnpm test:watch`       | Run unit tests in watch mode                           |
+| `test:ui`          | `pnpm test:ui`          | Open Vitest UI for visual test navigation              |
+| `test:coverage`    | `pnpm test:coverage`    | Run unit tests with coverage report                    |
+| `test:e2e`         | `pnpm test:e2e`         | Run E2E tests with Playwright                          |
+| `test:e2e:ui`      | `pnpm test:e2e:ui`      | Open Playwright UI mode for interactive testing        |
+| `test:e2e:headed`  | `pnpm test:e2e:headed`  | Run E2E tests with visible browser                     |
+| `test:e2e:debug`   | `pnpm test:e2e:debug`   | Debug E2E tests step by step                           |
+| `test:e2e:codegen` | `pnpm test:e2e:codegen` | Record new E2E tests with Playwright codegen           |
 
 ## Project Scope
 
