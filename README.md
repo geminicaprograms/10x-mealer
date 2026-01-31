@@ -1,6 +1,8 @@
 # Mealer
 
-A Progressive Web App (PWA) that intelligently matches online recipes with your kitchen inventory, using AI to digitize grocery receipts, track available ingredients, and suggest recipe modifications based on what you actually have in your fridge.
+A Progressive Web App (PWA) that intelligently matches online recipes with your kitchen inventory,
+using AI to digitize grocery receipts, track available ingredients,
+and suggest recipe modifications based on what you actually have in your fridge.
 
 ## Table of Contents
 
