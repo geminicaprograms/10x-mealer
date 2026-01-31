@@ -13,7 +13,6 @@
 # testing
 /coverage
 /e2e/test-results/
-/e2e/snapshots/
 /playwright-report/
 /playwright/.cache/
 

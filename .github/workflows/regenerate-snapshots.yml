@@ -1,0 +1,75 @@
+name: Regenerate Playwright Snapshots
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to regenerate snapshots for"
+        required: true
+        default: "master"
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.branch }}
+  cancel-in-progress: true
+
+jobs:
+  regenerate-snapshots:
+    name: Regenerate Snapshots
+    runs-on: ubuntu-latest
+    environment: integration
+    permissions:
+      contents: write
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.branch }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: ./.github/actions/setup
+
+      - name: Install Playwright Chromium browser
+        run: pnpm exec playwright install chromium --with-deps
+
+      - name: Build application
+        run: pnpm run build
+
+      - name: Regenerate Playwright snapshots
+        run: pnpm exec playwright test --update-snapshots
+
+      - name: Upload test artifacts on failure
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: snapshot-regeneration-artifacts
+          path: |
+            e2e/test-results/
+            playwright-report/
+          retention-days: 7
+
+      - name: Check for snapshot changes
+        id: snapshot-changes
+        run: |
+          git add e2e/snapshots/
+          if git diff --cached --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            git diff --cached --name-only
+          fi
+
+      - name: Commit updated snapshots
+        if: steps.snapshot-changes.outputs.has_changes == 'true'
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "chore(e2e): regenerate playwright snapshots [skip ci]"
+          file_pattern: "e2e/snapshots/"
+          branch: ${{ inputs.branch }}
+          commit_author: "github-actions[bot] <github-actions[bot]@users.noreply.github.com>"
