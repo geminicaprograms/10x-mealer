@@ -55,7 +55,6 @@ export function SettingsContainer() {
     // Loading states
     isLoadingProfile,
     isLoadingAIUsage,
-    isLoadingConfig,
     isSavingPreferences,
     isLoggingOut,
     isDeletingAccount,

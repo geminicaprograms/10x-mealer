@@ -8,7 +8,7 @@
  */
 
 import * as React from "react";
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -94,13 +94,16 @@ export function PreferencesEditSheet({
 }: PreferencesEditSheetProps) {
   // Form state
   const [formData, setFormData] = useState<PreferencesFormData>(() => initializeFormData(profile));
+  // Track open state for detecting transitions
+  const [wasOpen, setWasOpen] = useState(isOpen);
 
-  // Reset form when sheet opens with new profile data
-  useEffect(() => {
-    if (isOpen) {
-      setFormData(initializeFormData(profile));
-    }
-  }, [isOpen, profile]);
+  // Reset form when sheet opens (transition from closed to open)
+  if (isOpen && !wasOpen) {
+    setFormData(initializeFormData(profile));
+    setWasOpen(true);
+  } else if (!isOpen && wasOpen) {
+    setWasOpen(false);
+  }
 
   // ---------------------------------------------------------------------------
   // Handlers

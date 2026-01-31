@@ -138,14 +138,16 @@ export function ProductAutocomplete({
 }: ProductAutocompleteProps) {
   const [open, setOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ProductDTO | null>(null);
+  const [lastSyncedProductId, setLastSyncedProductId] = useState(selectedProductId);
   const { query, setQuery, results, isLoading, error } = useProductSearch();
 
-  // Update selected product display when ID changes
-  useEffect(() => {
-    if (selectedProductId === null) {
-      setSelectedProduct(null);
-    }
-  }, [selectedProductId]);
+  // Clear selected product when ID becomes null (sync from prop)
+  if (selectedProductId !== lastSyncedProductId && selectedProductId === null) {
+    setSelectedProduct(null);
+    setLastSyncedProductId(selectedProductId);
+  } else if (selectedProductId !== lastSyncedProductId) {
+    setLastSyncedProductId(selectedProductId);
+  }
 
   // Display text for the trigger button
   const displayValue = selectedProduct?.name_pl || customName || "";

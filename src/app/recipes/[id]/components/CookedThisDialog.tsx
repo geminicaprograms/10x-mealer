@@ -48,16 +48,19 @@ interface CookedThisDialogProps {
 export function CookedThisDialog({ open, onOpenChange, ingredients, onConfirm, isSubmitting }: CookedThisDialogProps) {
   // Local state for adjusted quantities
   const [items, setItems] = useState<DeductionItemViewModel[]>(ingredients);
+  // Track open state for detecting transitions
+  const [wasOpen, setWasOpen] = useState(open);
 
   // Ref for the first input for focus management
   const firstInputRef = useRef<HTMLDivElement>(null);
 
-  // Reset items when dialog opens with new ingredients
-  useEffect(() => {
-    if (open) {
-      setItems(ingredients);
-    }
-  }, [open, ingredients]);
+  // Reset items when dialog opens (transition from closed to open)
+  if (open && !wasOpen) {
+    setItems(ingredients);
+    setWasOpen(true);
+  } else if (!open && wasOpen) {
+    setWasOpen(false);
+  }
 
   // Focus management: focus first input when dialog opens
   useEffect(() => {

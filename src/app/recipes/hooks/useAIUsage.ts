@@ -66,10 +66,22 @@ export function useAIUsage(): UseAIUsageReturn {
   }, []);
 
   /**
-   * Fetch on mount
+   * Fetch on mount - scheduled asynchronously to avoid synchronous setState warning
    */
   useEffect(() => {
-    fetchUsage();
+    let cancelled = false;
+
+    const doFetch = async () => {
+      if (!cancelled) {
+        await fetchUsage();
+      }
+    };
+
+    doFetch();
+
+    return () => {
+      cancelled = true;
+    };
   }, [fetchUsage]);
 
   /**

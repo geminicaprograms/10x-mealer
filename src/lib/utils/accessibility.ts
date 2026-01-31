@@ -1,6 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
+
+/**
+ * Subscribe to prefers-reduced-motion media query changes
+ */
+function subscribeToReducedMotion(callback: () => void): () => void {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return () => {};
+  }
+
+  const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  mediaQuery.addEventListener("change", callback);
+
+  return () => {
+    mediaQuery.removeEventListener("change", callback);
+  };
+}
+
+/**
+ * Get current snapshot of prefers-reduced-motion preference
+ */
+function getReducedMotionSnapshot(): boolean {
+  if (typeof window === "undefined" || !window.matchMedia) {
+    return false;
+  }
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/**
+ * Server snapshot - default to false for SSR
+ */
+function getReducedMotionServerSnapshot(): boolean {
+  return false;
+}
 
 /**
  * Hook to detect user's prefers-reduced-motion preference.
@@ -14,35 +47,7 @@ import { useState, useEffect } from "react";
  * const animationDuration = prefersReducedMotion ? 0 : 300;
  */
 export function usePrefersReducedMotion(): boolean {
-  // Default to false to avoid hydration mismatch
-  // (server doesn't know user preference)
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
-
-  useEffect(() => {
-    // Check if matchMedia is available (client-side only)
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    // Set initial value
-    setPrefersReducedMotion(mediaQuery.matches);
-
-    // Listen for changes
-    const handleChange = (event: MediaQueryListEvent) => {
-      setPrefersReducedMotion(event.matches);
-    };
-
-    // Modern browsers
-    mediaQuery.addEventListener("change", handleChange);
-
-    return () => {
-      mediaQuery.removeEventListener("change", handleChange);
-    };
-  }, []);
-
-  return prefersReducedMotion;
+  return useSyncExternalStore(subscribeToReducedMotion, getReducedMotionSnapshot, getReducedMotionServerSnapshot);
 }
 
 /**

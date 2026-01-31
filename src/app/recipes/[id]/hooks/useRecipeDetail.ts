@@ -7,7 +7,7 @@
  * Combines recipe loading, substitution analysis, and deduction management.
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
@@ -17,7 +17,6 @@ import { useSubstitutionAnalysis } from "./useSubstitutionAnalysis";
 import { useInventoryDeduction } from "./useInventoryDeduction";
 import {
   type SubstitutionAnalysisViewModel,
-  type DeductionItemViewModel,
   type CookedThisDialogState,
   createDeductionItems,
   RECIPE_DETAIL_STRINGS,
@@ -188,14 +187,6 @@ export function useRecipeDetail(recipeId: string): UseRecipeDetailReturn {
   // ==========================================================================
 
   const canUseAI = canUseSubstitutions && !isRateLimited;
-
-  // Check if there are deductible ingredients
-  const hasDeductibleIngredients = useMemo(() => {
-    if (!analysis) return false;
-    return analysis.ingredients.some(
-      (ing) => (ing.status === "available" || ing.status === "partial") && ing.matchedItem && !ing.isStaple
-    );
-  }, [analysis]);
 
   // ==========================================================================
   // Actions

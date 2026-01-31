@@ -86,28 +86,34 @@ export function FilterSortRow({ categories, filters, onFiltersChange, isLoading 
   const sortId = useId();
 
   // Local search input state for debouncing
+  // Use key pattern: reset local state when filters.search changes externally
   const [searchInput, setSearchInput] = useState(filters.search);
-  const [searchError, setSearchError] = useState<string | null>(null);
+  const [lastSyncedSearch, setLastSyncedSearch] = useState(filters.search);
 
-  // Sync local search with external filter state
-  useEffect(() => {
+  // Sync local state with external filter state when it changes
+  if (filters.search !== lastSyncedSearch) {
     setSearchInput(filters.search);
-  }, [filters.search]);
+    setLastSyncedSearch(filters.search);
+  }
 
-  // Debounced search handler
+  // Compute error inline instead of in effect
+  const searchError = searchInput.length > SEARCH_MAX_LENGTH ? INVENTORY_STRINGS.validation.searchTooLong : null;
+
+  // Debounced search handler - only debounces the API call, not the setState
   useEffect(() => {
-    // Validate search length
+    // Skip if there's a validation error
     if (searchInput.length > SEARCH_MAX_LENGTH) {
-      setSearchError(INVENTORY_STRINGS.validation.searchTooLong);
       return;
     }
 
-    setSearchError(null);
+    // Skip if already synced
+    if (searchInput === filters.search) {
+      return;
+    }
 
     const timer = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        onFiltersChange({ ...filters, search: searchInput });
-      }
+      onFiltersChange({ ...filters, search: searchInput });
+      setLastSyncedSearch(searchInput);
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);

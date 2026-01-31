@@ -61,7 +61,6 @@ export default function RecipeDetailPage({ params }: RecipeDetailPageProps) {
     closeCookedThisDialog,
     confirmDeductions,
     navigateToInventory,
-    navigateBack,
   } = useRecipeDetail(id);
 
   // Show loading state (will show loading.tsx)

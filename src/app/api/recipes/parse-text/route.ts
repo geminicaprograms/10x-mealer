@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/db/supabase/server";
-import { recipeParseTextSchema, MAX_TEXT_LENGTH } from "@/lib/services/recipe.service";
+import { recipeParseTextSchema } from "@/lib/services/recipe.service";
 import { parseRecipeFromText, ExternalServiceError } from "@/lib/services/openrouter.service";
 import {
   unauthorizedError,
