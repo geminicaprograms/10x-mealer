@@ -41,12 +41,7 @@ export function SessionExpiredDialog({ open, onAction }: SessionExpiredDialogPro
 
   return (
     <AlertDialog open={open}>
-      <AlertDialogContent
-        // Prevent closing by clicking outside or pressing Escape
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        aria-describedby="session-expired-description"
-      >
+      <AlertDialogContent aria-describedby="session-expired-description">
         <AlertDialogHeader>
           <AlertDialogMedia className="bg-amber-100 dark:bg-amber-900/30">
             <LogIn className="text-amber-600 dark:text-amber-400" aria-hidden="true" />
